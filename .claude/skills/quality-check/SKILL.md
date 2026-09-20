@@ -26,13 +26,14 @@ npm run build
 ## バックエンド（`backend/` が存在し、その配下を変更した場合）
 
 ```bash
+npm run lint          # リポジトリ直下で実行（backend/ もルートのESLint設定の対象）
 cd backend
-npm run lint
+npm run type-check
 npm run test
-npm run build
 ```
 
-`backend/` を追加するPRで、このスキルのバックエンド節を実際のコマンドに合わせて更新すること。
+- `npm run type-check`: `tsc --noEmit` による型チェック。バックエンドは `tsx` で直接実行するためビルド工程はない。
+- `npm run test`: Vitest による単体テスト（Honoの `app.request()` + メモリ上のSQLite）。ルートの `npm run test` は `backend/` を対象外にしているため、`backend/` で別途実行する。
 
 ## 適用範囲
 

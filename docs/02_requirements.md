@@ -20,14 +20,14 @@
 | テスト | Vitest + Vue Test Utils（jsdom） | Vitest 4.1.11 |
 | lint | ESLint（eslint-plugin-vue + typescript-eslint） | ESLint 10.11.0 |
 
-#### バックエンド（`backend/`。導入するPRでバージョンを追記する）
+#### バックエンド（`backend/`）
 
-| 区分 | 内容 |
-| --- | --- |
-| 言語/フレームワーク | Node.js + TypeScript + Hono |
-| DB | SQLite（`better-sqlite3` を第一候補。Node v24 + Windowsで導入できない場合は組み込みの `node:sqlite`） |
-| API方式 | REST API（JSON） |
-| テスト | Vitest（Honoの `app.request()` + メモリ上のSQLite） |
+| 区分 | 内容 | バージョン |
+| --- | --- | --- |
+| 言語/フレームワーク | Node.js + TypeScript + Hono（`@hono/node-server`、実行は `tsx`） | Hono 4.13.8 / @hono/node-server 2.1.1 / TypeScript 7.0.2 / tsx 4.23.15 |
+| DB | SQLite（`better-sqlite3`。Node v24 + Windowsで導入できることを確認済み） | better-sqlite3 13.0.3 |
+| API方式 | REST API（JSON） | - |
+| テスト | Vitest（Honoの `app.request()` + メモリ上のSQLite） | Vitest 5.0.1 |
 
 #### 実行環境・その他
 
