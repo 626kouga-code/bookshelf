@@ -54,7 +54,7 @@
 | メソッド | パス | 説明 |
 | --- | --- | --- |
 | GET | `/api/health` | 動作確認 |
-| GET | `/api/books` | 本の一覧（状態・ジャンル・評価・著者での絞り込み、並べ替え、キーワード検索のクエリを受け付ける） |
+| GET | `/api/books` | 本の一覧（下記のクエリで絞り込み・並べ替え・キーワード検索） |
 | POST | `/api/books` | 本の登録。同じISBNが既にある場合は `409` |
 | GET / PUT / DELETE | `/api/books/:id` | 本の取得・更新・削除。状態を `done` に更新すると `finished_at` を自動設定（`done` から戻すと解除）。`PUT` は送った項目のみ更新する部分更新 |
 | POST | `/api/books/:id/logs` | 読書ログの追加 |
@@ -64,6 +64,20 @@
 | GET / PUT | `/api/goals` | 読書目標の取得・設定 |
 | GET | `/api/export` | 全データをJSONで出力 |
 | POST | `/api/import` | JSONから全データを復元 |
+
+### `GET /api/books` のクエリパラメータ
+
+すべて任意。空文字は指定なしとして扱い、不正な値は `400`。絞り込みは AND で組み合わせる。
+
+| パラメータ | 内容 |
+| --- | --- |
+| `status` | `want` / `reading` / `done` |
+| `genre` | ジャンルの完全一致 |
+| `rating` | 星評価の完全一致（0〜5。0は未評価） |
+| `author` | 著者の完全一致（複数著者のいずれか） |
+| `q` | タイトル・著者の部分一致（英字は大文字小文字を区別しない） |
+| `sort` | `added_at`（既定）/ `title` / `rating` / `finished_at` |
+| `order` | `desc`（既定）/ `asc`。`sort` の値が未設定（NULL）の本は常に末尾 |
 
 エラーは `{ "error": "メッセージ" }` 形式のJSONと適切なHTTPステータスで返す。
 
