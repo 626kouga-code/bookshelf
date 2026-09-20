@@ -56,7 +56,7 @@
 | GET | `/api/health` | 動作確認 |
 | GET | `/api/books` | 本の一覧（状態・ジャンル・評価・著者での絞り込み、並べ替え、キーワード検索のクエリを受け付ける） |
 | POST | `/api/books` | 本の登録。同じISBNが既にある場合は `409` |
-| GET / PUT / DELETE | `/api/books/:id` | 本の取得・更新・削除。状態を `done` に更新すると `finished_at` を自動設定 |
+| GET / PUT / DELETE | `/api/books/:id` | 本の取得・更新・削除。状態を `done` に更新すると `finished_at` を自動設定（`done` から戻すと解除）。`PUT` は送った項目のみ更新する部分更新 |
 | POST | `/api/books/:id/logs` | 読書ログの追加 |
 | POST | `/api/books/:id/quotes` | 引用の追加 |
 | GET | `/api/quotes?q=` | 引用の横断検索 |

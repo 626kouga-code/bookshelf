@@ -1,5 +1,7 @@
 import { Hono } from 'hono'
+import { booksRoutes } from './books.ts'
 import type { Db } from './db.ts'
+import { ApiError } from './errors.ts'
 
 export function createApp(db: Db) {
   const app = new Hono()
@@ -9,7 +11,10 @@ export function createApp(db: Db) {
     return c.json({ status: 'ok' })
   })
 
+  app.route('/api/books', booksRoutes(db))
+
   app.onError((err, c) => {
+    if (err instanceof ApiError) return c.json({ error: err.message }, err.status)
     console.error(err)
     return c.json({ error: 'Internal Server Error' }, 500)
   })
