@@ -117,6 +117,64 @@ function parseBookInput(raw: unknown): BookInput {
   return input
 }
 
+/** 並べ替えに使える項目（クエリの `sort` → 列名）。 */
+const SORT_COLUMNS = {
+  added_at: 'added_at',
+  title: 'title',
+  rating: 'rating',
+  finished_at: 'finished_at',
+} as const
+type SortKey = keyof typeof SORT_COLUMNS
+
+interface ListQuery {
+  status?: Status
+  genre?: string
+  rating?: number
+  author?: string
+  q?: string
+  sort: SortKey
+  order: 'asc' | 'desc'
+}
+
+/** `GET /api/books` のクエリパラメータを検証する。空文字は「指定なし」として扱う。 */
+function parseListQuery(query: Record<string, string>): ListQuery {
+  const get = (key: string) => (query[key] === undefined || query[key] === '' ? undefined : query[key])
+
+  const status = get('status')
+  if (status !== undefined && !STATUSES.includes(status as Status)) {
+    throw new ApiError(400, `status は ${STATUSES.join(' / ')} のいずれかで指定してください`)
+  }
+
+  const ratingText = get('rating')
+  let rating: number | undefined
+  if (ratingText !== undefined) {
+    rating = Number(ratingText)
+    if (!/^\d+$/.test(ratingText) || rating > 5) {
+      throw new ApiError(400, 'rating は 0〜5 の整数で指定してください')
+    }
+  }
+
+  const sort = get('sort') ?? 'added_at'
+  if (!(sort in SORT_COLUMNS)) {
+    throw new ApiError(400, `sort は ${Object.keys(SORT_COLUMNS).join(' / ')} のいずれかで指定してください`)
+  }
+
+  const order = get('order') ?? 'desc'
+  if (order !== 'asc' && order !== 'desc') {
+    throw new ApiError(400, 'order は asc / desc のいずれかで指定してください')
+  }
+
+  return {
+    status: status as Status | undefined,
+    genre: get('genre'),
+    rating,
+    author: get('author'),
+    q: get('q'),
+    sort: sort as SortKey,
+    order,
+  }
+}
+
 function parseId(value: string): number {
   if (!/^\d+$/.test(value)) throw new ApiError(400, 'id は正の整数で指定してください')
   return Number(value)
@@ -176,6 +234,44 @@ export function booksRoutes(db: Db) {
       )
 
     return c.json(toBook(requireBook(Number(result.lastInsertRowid))), 201)
+  })
+
+  routes.get('/', (c) => {
+    const q = parseListQuery(c.req.query())
+    const where: string[] = []
+    const params: (string | number)[] = []
+
+    if (q.status) {
+      where.push('status = ?')
+      params.push(q.status)
+    }
+    if (q.genre) {
+      where.push('genre = ?')
+      params.push(q.genre)
+    }
+    if (q.rating !== undefined) {
+      where.push('rating = ?')
+      params.push(q.rating)
+    }
+    if (q.author) {
+      where.push('EXISTS (SELECT 1 FROM json_each(books.authors) WHERE value = ?)')
+      params.push(q.author)
+    }
+    if (q.q) {
+      const like = `%${q.q.replace(/[\\%_]/g, '\\$&')}%`
+      where.push(
+        `(title LIKE ? ESCAPE '\\' OR EXISTS (SELECT 1 FROM json_each(books.authors) WHERE value LIKE ? ESCAPE '\\'))`,
+      )
+      params.push(like, like)
+    }
+
+    const column = SORT_COLUMNS[q.sort]
+    const collate = q.sort === 'title' ? ' COLLATE NOCASE' : ''
+    const sql = `SELECT * FROM books
+      ${where.length ? `WHERE ${where.join(' AND ')}` : ''}
+      ORDER BY ${column} IS NULL, ${column}${collate} ${q.order}, id ${q.order}`
+
+    return c.json((db.prepare(sql).all(...params) as BookRow[]).map(toBook))
   })
 
   routes.get('/:id', (c) => c.json(toBook(requireBook(parseId(c.req.param('id'))))))

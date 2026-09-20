@@ -207,6 +207,130 @@ describe('books API', () => {
     })
   })
 
+  describe('GET /api/books', () => {
+    const list = async (query = '') => {
+      const res = await send('GET', `/api/books${query}`)
+      const body = await res.json()
+      return { res, body, titles: Array.isArray(body) ? body.map((b: { title: string }) => b.title) : [] }
+    }
+
+    const seed = async () => {
+      await create({ title: 'Vue入門', authors: ['山田'], genre: '技術書', status: 'reading', rating: 3 })
+      await create({ title: 'apple', authors: ['鈴木', '山田'], genre: '小説', status: 'done', rating: 5 })
+      await create({ title: 'Banana', authors: ['佐藤'], genre: '小説', status: 'want' })
+      await create({ title: 'cherry', genre: '技術書', status: 'done', rating: 3 })
+      // 追加日・読了日を固定して並び順を検証する
+      const dates = [
+        ['Vue入門', '2026-01-01T00:00:00.000Z', null],
+        ['apple', '2026-01-02T00:00:00.000Z', '2026-03-01T00:00:00.000Z'],
+        ['Banana', '2026-01-03T00:00:00.000Z', null],
+        ['cherry', '2026-01-04T00:00:00.000Z', '2026-02-01T00:00:00.000Z'],
+      ]
+      for (const [title, added, finished] of dates) {
+        db.prepare('UPDATE books SET added_at = ?, finished_at = ? WHERE title = ?').run(added, finished, title)
+      }
+    }
+
+    it('本がなければ空配列', async () => {
+      const { res, body } = await list()
+      expect(res.status).toBe(200)
+      expect(body).toEqual([])
+    })
+
+    it('既定は追加日の新しい順で、authors は配列で返る', async () => {
+      await seed()
+      const { body, titles } = await list()
+      expect(titles).toEqual(['cherry', 'Banana', 'apple', 'Vue入門'])
+      expect(body[2].authors).toEqual(['鈴木', '山田'])
+    })
+
+    it('状態で絞り込める', async () => {
+      await seed()
+      expect((await list('?status=done')).titles).toEqual(['cherry', 'apple'])
+    })
+
+    it('ジャンルで絞り込める', async () => {
+      await seed()
+      expect((await list(`?genre=${encodeURIComponent('小説')}`)).titles).toEqual(['Banana', 'apple'])
+    })
+
+    it('評価で絞り込める（0は未評価）', async () => {
+      await seed()
+      expect((await list('?rating=3')).titles).toEqual(['cherry', 'Vue入門'])
+      expect((await list('?rating=0')).titles).toEqual(['Banana'])
+    })
+
+    it('著者で絞り込める（完全一致・複数著者のどれか）', async () => {
+      await seed()
+      expect((await list(`?author=${encodeURIComponent('山田')}`)).titles).toEqual(['apple', 'Vue入門'])
+      expect((await list(`?author=${encodeURIComponent('山')}`)).titles).toEqual([])
+    })
+
+    it('条件は AND で組み合わせられる', async () => {
+      await seed()
+      const query = `?status=done&genre=${encodeURIComponent('小説')}&rating=5`
+      expect((await list(query)).titles).toEqual(['apple'])
+    })
+
+    it('キーワードでタイトルを部分一致検索できる（大文字小文字を区別しない）', async () => {
+      await seed()
+      expect((await list('?q=AN')).titles).toEqual(['Banana'])
+      expect((await list(`?q=${encodeURIComponent('入門')}`)).titles).toEqual(['Vue入門'])
+    })
+
+    it('キーワードで著者も部分一致検索できる', async () => {
+      await seed()
+      expect((await list(`?q=${encodeURIComponent('山')}`)).titles).toEqual(['apple', 'Vue入門'])
+    })
+
+    it('キーワードの % や _ はワイルドカードにならない', async () => {
+      await seed()
+      await create({ title: '100%完全ガイド' })
+      expect((await list('?q=%25')).titles).toEqual(['100%完全ガイド'])
+      expect((await list('?q=_')).titles).toEqual([])
+    })
+
+    it('タイトル順に並べ替えられる（大文字小文字を区別しない）', async () => {
+      await seed()
+      expect((await list('?sort=title&order=asc')).titles).toEqual(['apple', 'Banana', 'cherry', 'Vue入門'])
+    })
+
+    it('評価順に並べ替えられる', async () => {
+      await seed()
+      expect((await list('?sort=rating&order=desc')).titles).toEqual(['apple', 'cherry', 'Vue入門', 'Banana'])
+    })
+
+    it('読了日順では未読了の本は昇順・降順どちらでも末尾', async () => {
+      await seed()
+      expect((await list('?sort=finished_at&order=asc')).titles).toEqual(['cherry', 'apple', 'Vue入門', 'Banana'])
+      expect((await list('?sort=finished_at&order=desc')).titles).toEqual(['apple', 'cherry', 'Banana', 'Vue入門'])
+    })
+
+    it('追加日の昇順に並べ替えられる', async () => {
+      await seed()
+      expect((await list('?sort=added_at&order=asc')).titles).toEqual(['Vue入門', 'apple', 'Banana', 'cherry'])
+    })
+
+    it('空のクエリパラメータは指定なしとして扱う', async () => {
+      await seed()
+      expect((await list('?status=&genre=&q=&sort=&order=')).titles).toHaveLength(4)
+    })
+
+    it.each([
+      ['status が不正', '?status=unknown'],
+      ['rating が範囲外', '?rating=6'],
+      ['rating が数値でない', '?rating=abc'],
+      ['rating が負', '?rating=-1'],
+      ['sort が不正', '?sort=pages'],
+      ['sort が列名の注入', '?sort=id;DROP TABLE books'],
+      ['order が不正', '?order=up'],
+    ])('%s場合は400', async (_name, query) => {
+      const { res, body } = await list(query)
+      expect(res.status).toBe(400)
+      expect(body).toEqual({ error: expect.any(String) })
+    })
+  })
+
   describe('DELETE /api/books/:id', () => {
     it('削除すると取得できなくなる', async () => {
       const { book } = await create()
