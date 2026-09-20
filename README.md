@@ -1,54 +1,54 @@
-# reading-app
+# bookshelf
 
-This template should help get you started developing with Vue 3 in Vite.
+読書管理アプリ。読んだ本・読んでいる本・読みたい本を記録し、読書の進捗や傾向を振り返るための個人向けツールです。Vue製フロントエンドとNode.js（Hono）バックエンドで構成し、データはSQLiteに保存します。
 
-## Recommended IDE Setup
+## 要件定義書
 
-[VS Code](https://code.visualstudio.com/) + [Vue (Official)](https://marketplace.visualstudio.com/items?itemName=Vue.volar) (and disable Vetur).
+詳細な要件定義は以下に分割してあります。
 
-## Recommended Browser Setup
+1. [概要・目的・対象ユーザー](./docs/01_overview.md)
+2. [非機能要件・機能要件](./docs/02_requirements.md)（技術スタックのバージョン一覧はこちら）
+3. [データモデル・API・画面構成](./docs/03_design.md)
+4. [スコープ外・拡張候補](./docs/04_scope.md)
 
-- Chromium-based browsers (Chrome, Edge, Brave, etc.):
-  - [Vue.js devtools](https://chromewebstore.google.com/detail/vuejs-devtools/nhdogjmejiglipccpnnnanhbledajbpd)
-  - [Turn on Custom Object Formatter in Chrome DevTools](http://bit.ly/object-formatters)
-- Firefox:
-  - [Vue.js devtools](https://addons.mozilla.org/en-US/firefox/addon/vue-js-devtools/)
-  - [Turn on Custom Object Formatter in Firefox DevTools](https://fxdx.dev/firefox-devtools-custom-object-formatters/)
+開発ルール（Issue・ブランチ・PR・ポート固定）は [CLAUDE.md](./CLAUDE.md) を参照してください。
 
-## Type Support for `.vue` Imports in TS
+## 技術スタック
 
-TypeScript cannot handle type information for `.vue` imports by default, so we replace the `tsc` CLI with `vue-tsc` for type checking. In editors, we need [Volar](https://marketplace.visualstudio.com/items?itemName=Vue.volar) to make the TypeScript language service aware of `.vue` types.
+| レイヤー | 主な技術 |
+| --- | --- |
+| フロントエンド | Vue 3 + TypeScript + Vite、Pinia、Vue Router、Tailwind CSS |
+| バックエンド | Node.js + TypeScript + Hono、REST API（`backend/`。今後追加） |
+| データベース | SQLite |
+| 外部API | Google Books API（書誌情報の検索） |
+| テスト・lint | Vitest、ESLint |
 
-## Customize configuration
+## セットアップ・起動方法
 
-See [Vite Configuration Reference](https://vite.dev/config/).
+### 前提
 
-## Project Setup
+- Node.js v24（`^22.18.0 || >=24.12.0`）
+- OneDriveの同期対象外のフォルダに置くこと（DBファイルや `node_modules` の競合を避けるため）
 
-```sh
+### フロントエンド
+
+```bash
 npm install
-```
-
-### Compile and Hot-Reload for Development
-
-```sh
 npm run dev
 ```
 
-### Type-Check, Compile and Minify for Production
+`http://localhost:5173` で起動します。ポートは固定のため、5173が使用中の場合は起動に失敗します（詳細は [.claude/skills/dev-server-ports/SKILL.md](./.claude/skills/dev-server-ports/SKILL.md)）。`/api` へのリクエストは、バックエンド（`8080`）へプロキシされます。
 
-```sh
-npm run build
+### バックエンド
+
+`backend/` の追加後に手順を追記します。
+
+## 品質チェック
+
+```bash
+npm run lint    # ESLint
+npm run test    # Vitest
+npm run build   # 型チェック + ビルド
 ```
 
-### Run Unit Tests with [Vitest](https://vitest.dev/)
-
-```sh
-npm run test:unit
-```
-
-### Lint with [ESLint](https://eslint.org/)
-
-```sh
-npm run lint
-```
+コミット・PR作成前の手順は [.claude/skills/quality-check/SKILL.md](./.claude/skills/quality-check/SKILL.md) にまとめています。
