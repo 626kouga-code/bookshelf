@@ -1,0 +1,216 @@
+<script setup lang="ts">
+import { computed, ref, watch } from 'vue'
+import { RouterLink, useRoute, useRouter } from 'vue-router'
+import BookForm from '@/components/BookForm.vue'
+import { deleteBook, getBook, updateBook, type Book, type BookInput } from '@/api/books'
+import { ApiRequestError } from '@/api/client'
+import { formatDate, progressOf, STATUS_CLASSES, STATUS_LABELS } from '@/utils/book'
+
+const route = useRoute()
+const router = useRouter()
+
+const book = ref<Book | null>(null)
+const loading = ref(true)
+/** 取得の失敗。notFound のときは再読み込みではなく本棚への案内を出す */
+const loadError = ref<{ message: string; notFound: boolean } | null>(null)
+
+const editing = ref(false)
+const saving = ref(false)
+const deleting = ref(false)
+/** 更新・削除の失敗（フォームや操作ボタンの近くに表示する） */
+const actionError = ref<string | null>(null)
+
+const bookId = computed(() => {
+  const id = route.params.id
+  return typeof id === 'string' && /^\d+$/.test(id) ? Number(id) : null
+})
+
+const progress = computed(() => (book.value ? progressOf(book.value) : null))
+
+// 連続して読み込んだとき、古いリクエストの結果で新しい結果を上書きしない
+let latestRequest = 0
+
+async function load() {
+  const requestId = ++latestRequest
+  editing.value = false
+  actionError.value = null
+  loadError.value = null
+  book.value = null
+
+  if (bookId.value === null) {
+    loading.value = false
+    loadError.value = { message: '本が見つかりません', notFound: true }
+    return
+  }
+
+  loading.value = true
+  try {
+    const result = await getBook(bookId.value)
+    if (requestId === latestRequest) book.value = result
+  } catch (e) {
+    if (requestId !== latestRequest) return
+    loadError.value = {
+      message: e instanceof Error ? e.message : '本の取得に失敗しました',
+      notFound: e instanceof ApiRequestError && e.status === 404,
+    }
+  } finally {
+    if (requestId === latestRequest) loading.value = false
+  }
+}
+
+watch(bookId, load, { immediate: true })
+
+function startEdit() {
+  actionError.value = null
+  editing.value = true
+}
+
+async function onSave(input: BookInput) {
+  if (!book.value || saving.value) return
+  saving.value = true
+  actionError.value = null
+  try {
+    book.value = await updateBook(book.value.id, input)
+    editing.value = false
+  } catch (e) {
+    actionError.value = e instanceof Error ? e.message : '保存に失敗しました'
+  } finally {
+    saving.value = false
+  }
+}
+
+async function onDelete() {
+  if (!book.value || deleting.value) return
+  if (!window.confirm(`「${book.value.title}」を削除します。読書ログや引用も一緒に削除され、元に戻せません。よろしいですか？`)) {
+    return
+  }
+  deleting.value = true
+  actionError.value = null
+  try {
+    await deleteBook(book.value.id)
+    await router.push('/')
+  } catch (e) {
+    actionError.value = e instanceof Error ? e.message : '削除に失敗しました'
+  } finally {
+    deleting.value = false
+  }
+}
+</script>
+
+<template>
+  <section class="mx-auto max-w-2xl">
+    <RouterLink to="/" class="text-sm text-stone-500 hover:text-stone-900">← 本棚に戻る</RouterLink>
+
+    <p v-if="loading" class="mt-6 text-stone-500">読み込み中…</p>
+
+    <div v-else-if="loadError" role="alert" class="mt-4 rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+      {{ loadError.message }}
+      <button v-if="!loadError.notFound" type="button" class="ml-2 underline" @click="load()">再読み込み</button>
+    </div>
+
+    <template v-else-if="book">
+      <template v-if="editing">
+        <h2 class="mb-4 mt-4 text-xl font-bold">本を編集</h2>
+        <BookForm
+          :initial="book"
+          clear-empty
+          submit-label="保存する"
+          cancel-label="キャンセル"
+          :submitting="saving"
+          :error="actionError"
+          @submit="onSave"
+          @cancel="editing = false"
+        />
+      </template>
+
+      <article v-else class="mt-4">
+        <div class="flex gap-4">
+          <img
+            v-if="book.cover"
+            :src="book.cover"
+            :alt="`${book.title}の表紙`"
+            class="h-40 w-28 shrink-0 rounded object-cover"
+          />
+          <div
+            v-else
+            class="flex h-40 w-28 shrink-0 items-center justify-center rounded bg-stone-100 text-xs text-stone-400"
+            aria-hidden="true"
+          >
+            No image
+          </div>
+
+          <div class="min-w-0 flex-1">
+            <h2 class="break-words text-xl font-bold">{{ book.title }}</h2>
+            <p v-if="book.authors.length" class="mt-1 text-stone-600">{{ book.authors.join('、') }}</p>
+
+            <div class="mt-3 flex flex-wrap items-center gap-2 text-sm">
+              <span class="rounded-full px-2 py-0.5 text-xs" :class="STATUS_CLASSES[book.status]">
+                {{ STATUS_LABELS[book.status] }}
+              </span>
+              <span v-if="book.rating > 0" class="text-amber-600" :aria-label="`評価 ${book.rating}`">
+                {{ '★'.repeat(book.rating) }}{{ '☆'.repeat(5 - book.rating) }}
+              </span>
+            </div>
+
+            <div v-if="book.status === 'reading' && progress" class="mt-3">
+              <div class="h-2 overflow-hidden rounded-full bg-stone-100">
+                <div class="h-full bg-sky-500" :style="{ width: `${progress.percent}%` }" />
+              </div>
+              <p class="mt-1 text-xs text-stone-500">
+                {{ progress.current }} / {{ progress.pages }} ページ（{{ progress.percent }}%）
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <dl class="mt-6 grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-sm">
+          <template v-if="book.genre">
+            <dt class="text-stone-500">ジャンル</dt>
+            <dd>{{ book.genre }}</dd>
+          </template>
+          <template v-if="book.isbn">
+            <dt class="text-stone-500">ISBN</dt>
+            <dd>{{ book.isbn }}</dd>
+          </template>
+          <template v-if="book.pages">
+            <dt class="text-stone-500">総ページ数</dt>
+            <dd>{{ book.pages }}</dd>
+          </template>
+          <dt class="text-stone-500">登録日</dt>
+          <dd>{{ formatDate(book.added_at) }}</dd>
+          <template v-if="book.finished_at">
+            <dt class="text-stone-500">読了日</dt>
+            <dd>{{ formatDate(book.finished_at) }}</dd>
+          </template>
+        </dl>
+
+        <section v-if="book.review" class="mt-6">
+          <h3 class="text-sm font-semibold">感想</h3>
+          <p class="mt-1 whitespace-pre-wrap break-words text-sm">{{ book.review }}</p>
+        </section>
+
+        <p v-if="actionError" role="alert" class="mt-6 rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+          {{ actionError }}
+        </p>
+
+        <div class="mt-8 flex gap-2">
+          <button
+            type="button"
+            class="rounded bg-stone-900 px-4 py-2 text-sm font-semibold text-white hover:bg-stone-700"
+            @click="startEdit"
+          >
+            編集
+          </button>
+          <button
+            type="button"
+            :disabled="deleting"
+            class="rounded border border-red-300 bg-white px-4 py-2 text-sm text-red-700 hover:bg-red-50 disabled:opacity-50"
+            @click="onDelete"
+          >
+            {{ deleting ? '削除中…' : '削除' }}
+          </button>
+        </div>
+      </article>
+    </template>
+  </section>
+</template>

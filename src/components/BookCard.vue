@@ -1,30 +1,18 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import type { Book, BookStatus } from '@/api/books'
+import { RouterLink } from 'vue-router'
+import type { Book } from '@/api/books'
+import { progressOf, STATUS_CLASSES, STATUS_LABELS } from '@/utils/book'
 
 const props = defineProps<{ book: Book }>()
 
-const STATUS_LABELS: Record<BookStatus, string> = {
-  want: '読みたい',
-  reading: '読書中',
-  done: '読了',
-}
-
-const STATUS_CLASSES: Record<BookStatus, string> = {
-  want: 'bg-stone-100 text-stone-700',
-  reading: 'bg-sky-100 text-sky-800',
-  done: 'bg-emerald-100 text-emerald-800',
-}
-
-const progress = computed(() => {
-  const { pages, current_page: current } = props.book
-  if (!pages || current === null) return null
-  return { current, pages, percent: Math.min(100, Math.round((current / pages) * 100)) }
-})
+const progress = computed(() => progressOf(props.book))
 </script>
 
 <template>
-  <article class="flex gap-3 rounded-lg border border-stone-200 bg-white p-3">
+  <article
+    class="relative flex gap-3 rounded-lg border border-stone-200 bg-white p-3 hover:border-stone-400 focus-within:border-stone-400"
+  >
     <img
       v-if="book.cover"
       :src="book.cover"
@@ -41,7 +29,10 @@ const progress = computed(() => {
     </div>
 
     <div class="min-w-0 flex-1">
-      <h2 class="truncate font-semibold" :title="book.title">{{ book.title }}</h2>
+      <h2 class="truncate font-semibold" :title="book.title">
+        <!-- カード全体をクリック領域にする（after:absolute） -->
+        <RouterLink :to="`/books/${book.id}`" class="after:absolute after:inset-0">{{ book.title }}</RouterLink>
+      </h2>
       <p v-if="book.authors.length" class="truncate text-sm text-stone-600">
         {{ book.authors.join('、') }}
       </p>

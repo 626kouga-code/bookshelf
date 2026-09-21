@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { mount } from '@vue/test-utils'
+import { createMemoryHistory, createRouter } from 'vue-router'
 import type { Book } from '@/api/books'
 import BookCard from '../BookCard.vue'
 
@@ -19,7 +20,13 @@ const base: Book = {
   finished_at: null,
 }
 
-const render = (book: Partial<Book> = {}) => mount(BookCard, { props: { book: { ...base, ...book } } })
+const router = createRouter({
+  history: createMemoryHistory(),
+  routes: [{ path: '/books/:id', component: { template: '<div />' } }],
+})
+
+const render = (book: Partial<Book> = {}) =>
+  mount(BookCard, { props: { book: { ...base, ...book } }, global: { plugins: [router] } })
 
 describe('BookCard', () => {
   it('タイトル・著者・状態・ジャンルを表示する', () => {
@@ -49,6 +56,12 @@ describe('BookCard', () => {
   it('評価があれば星で表示し、未評価なら表示しない', () => {
     expect(render({ rating: 4 }).text()).toContain('★★★★☆')
     expect(render({ rating: 0 }).find('[aria-label^="評価"]').exists()).toBe(false)
+  })
+
+  it('タイトルが本の詳細画面へのリンクになる', () => {
+    const link = render({ id: 42 }).find('h2 a')
+    expect(link.text()).toBe('吾輩は猫である')
+    expect(link.attributes('href')).toBe('/books/42')
   })
 
   it('表紙があれば画像を、なければ代替表示を出す', () => {
