@@ -40,3 +40,7 @@ __screenshots__/
 
 # SQLite DB (backend)
 backend/data/
+
+# 環境変数（Google Books APIキーなど。コミットしない）
+.env.local
+.env.*.local

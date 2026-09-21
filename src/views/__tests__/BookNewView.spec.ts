@@ -19,7 +19,7 @@ async function mountView() {
 
 async function fillAndSubmit(wrapper: Awaited<ReturnType<typeof mountView>>['wrapper'], title = '吾輩は猫である') {
   await wrapper.find('input[type="text"]').setValue(title)
-  await wrapper.find('form').trigger('submit')
+  await wrapper.find('form[novalidate]').trigger('submit')
   await flushPromises()
 }
 
@@ -67,10 +67,10 @@ describe('BookNewView', () => {
 
     await fillAndSubmit(wrapper)
     expect(wrapper.find('[role="alert"]').text()).toContain('サーバーに接続できません')
-    expect(wrapper.find('button[type="submit"]').attributes('disabled')).toBeUndefined()
+    expect(wrapper.find('form[novalidate] button[type="submit"]').attributes('disabled')).toBeUndefined()
 
     fail = false
-    await wrapper.find('form').trigger('submit')
+    await wrapper.find('form[novalidate]').trigger('submit')
     await flushPromises()
     expect(router.currentRoute.value.path).toBe('/')
   })
@@ -82,11 +82,79 @@ describe('BookNewView', () => {
     const { wrapper } = await mountView()
 
     await wrapper.find('input[type="text"]').setValue('a')
-    await wrapper.find('form').trigger('submit')
-    await wrapper.find('form').trigger('submit')
+    await wrapper.find('form[novalidate]').trigger('submit')
+    await wrapper.find('form[novalidate]').trigger('submit')
     expect(fetchMock).toHaveBeenCalledTimes(1)
 
     resolve(Response.json({ id: 1 }, { status: 201 }))
     await flushPromises()
+  })
+})
+
+describe('BookNewView の Google Books 連携', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  const googleResponse = {
+    items: [
+      {
+        volumeInfo: {
+          title: 'リーダブルコード',
+          authors: ['Dustin Boswell'],
+          industryIdentifiers: [{ type: 'ISBN_13', identifier: '9784873115658' }],
+          pageCount: 260,
+        },
+      },
+    ],
+  }
+
+  it('検索して候補を選ぶとフォームに入力され、そのまま登録できる', async () => {
+    const fetchMock = vi.fn<typeof fetch>(async (input) =>
+      String(input).startsWith('https://www.googleapis.com/')
+        ? Response.json(googleResponse)
+        : Response.json({ id: 1 }, { status: 201 }),
+    )
+    vi.stubGlobal('fetch', fetchMock)
+    const { wrapper, router } = await mountView()
+
+    await wrapper.find('input[type="search"]').setValue('9784873115658')
+    await wrapper.find('form:not([novalidate])').trigger('submit')
+    await flushPromises()
+    await wrapper.find('ul[aria-label="検索結果"] button').trigger('click')
+    await flushPromises()
+
+    expect((wrapper.find('input[type="text"]').element as HTMLInputElement).value).toBe('リーダブルコード')
+
+    await wrapper.find('form[novalidate]').trigger('submit')
+    await flushPromises()
+
+    const postCall = fetchMock.mock.calls.find(([url]) => url === '/api/books')!
+    expect(JSON.parse(String(postCall[1]?.body))).toEqual({
+      title: 'リーダブルコード',
+      authors: ['Dustin Boswell'],
+      isbn: '9784873115658',
+      pages: 260,
+      status: 'want',
+    })
+    expect(router.currentRoute.value.path).toBe('/')
+  })
+
+  it('検索に失敗しても手入力で登録できる', async () => {
+    const fetchMock = vi.fn<typeof fetch>(async (input) =>
+      String(input).startsWith('https://www.googleapis.com/')
+        ? new Response('', { status: 429 })
+        : Response.json({ id: 1 }, { status: 201 }),
+    )
+    vi.stubGlobal('fetch', fetchMock)
+    const { wrapper, router } = await mountView()
+
+    await wrapper.find('input[type="search"]').setValue('猫')
+    await wrapper.find('form:not([novalidate])').trigger('submit')
+    await flushPromises()
+    expect(wrapper.text()).toContain('利用上限')
+
+    await fillAndSubmit(wrapper, '手入力の本')
+    expect(router.currentRoute.value.path).toBe('/')
   })
 })
