@@ -2,6 +2,9 @@
 import { computed, ref, watch } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
 import BookForm from '@/components/BookForm.vue'
+import ProgressUpdate from '@/components/ProgressUpdate.vue'
+import RatingInput from '@/components/RatingInput.vue'
+import ReviewEditor from '@/components/ReviewEditor.vue'
 import { deleteBook, getBook, updateBook, type Book, type BookInput } from '@/api/books'
 import { ApiRequestError } from '@/api/client'
 import { formatDate, progressOf, STATUS_CLASSES, STATUS_LABELS } from '@/utils/book'
@@ -16,6 +19,8 @@ const loadError = ref<{ message: string; notFound: boolean } | null>(null)
 
 const editing = ref(false)
 const saving = ref(false)
+/** 詳細画面での部分更新（ページ・評価・感想・状態）の実行中 */
+const updating = ref(false)
 const deleting = ref(false)
 /** 更新・削除の失敗（フォームや操作ボタンの近くに表示する） */
 const actionError = ref<string | null>(null)
@@ -76,6 +81,20 @@ async function onSave(input: BookInput) {
     actionError.value = e instanceof Error ? e.message : '保存に失敗しました'
   } finally {
     saving.value = false
+  }
+}
+
+/** 編集フォームを開かずに一部の項目だけを更新する。失敗しても画面の入力は残す。 */
+async function patchBook(patch: Partial<BookInput>) {
+  if (!book.value || updating.value || deleting.value) return
+  updating.value = true
+  actionError.value = null
+  try {
+    book.value = await updateBook(book.value.id, patch)
+  } catch (e) {
+    actionError.value = e instanceof Error ? e.message : '更新に失敗しました'
+  } finally {
+    updating.value = false
   }
 }
 
@@ -147,9 +166,6 @@ async function onDelete() {
               <span class="rounded-full px-2 py-0.5 text-xs" :class="STATUS_CLASSES[book.status]">
                 {{ STATUS_LABELS[book.status] }}
               </span>
-              <span v-if="book.rating > 0" class="text-amber-600" :aria-label="`評価 ${book.rating}`">
-                {{ '★'.repeat(book.rating) }}{{ '☆'.repeat(5 - book.rating) }}
-              </span>
             </div>
 
             <div v-if="book.status === 'reading' && progress" class="mt-3">
@@ -162,6 +178,43 @@ async function onDelete() {
             </div>
           </div>
         </div>
+
+        <section v-if="book.status !== 'done'" aria-label="進捗" class="mt-6 space-y-3">
+          <ProgressUpdate
+            v-if="book.status === 'reading'"
+            :current-page="book.current_page"
+            :pages="book.pages"
+            :disabled="updating || deleting"
+            @update="patchBook({ current_page: $event })"
+          />
+          <button
+            v-if="book.status === 'reading'"
+            type="button"
+            :disabled="updating || deleting"
+            class="rounded bg-emerald-700 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-800 disabled:opacity-50"
+            @click="patchBook({ status: 'done' })"
+          >
+            読了にする
+          </button>
+          <button
+            v-else
+            type="button"
+            :disabled="updating || deleting"
+            class="rounded bg-sky-700 px-4 py-2 text-sm font-semibold text-white hover:bg-sky-800 disabled:opacity-50"
+            @click="patchBook({ status: 'reading' })"
+          >
+            読み始める
+          </button>
+        </section>
+
+        <section aria-label="評価" class="mt-6">
+          <h3 class="mb-1 text-sm font-semibold">評価</h3>
+          <RatingInput
+            :model-value="book.rating"
+            :disabled="updating || deleting"
+            @update:model-value="patchBook({ rating: $event })"
+          />
+        </section>
 
         <dl class="mt-6 grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-sm">
           <template v-if="book.genre">
@@ -184,9 +237,12 @@ async function onDelete() {
           </template>
         </dl>
 
-        <section v-if="book.review" class="mt-6">
-          <h3 class="text-sm font-semibold">感想</h3>
-          <p class="mt-1 whitespace-pre-wrap break-words text-sm">{{ book.review }}</p>
+        <section aria-label="感想" class="mt-6">
+          <ReviewEditor
+            :review="book.review"
+            :disabled="updating || deleting"
+            @save="patchBook({ review: $event })"
+          />
         </section>
 
         <p v-if="actionError" role="alert" class="mt-6 rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700">
