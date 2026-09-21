@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import { createMemoryHistory, createRouter } from 'vue-router'
 import type { Book } from '@/api/books'
+import BookForm from '@/components/BookForm.vue'
 import BookDetailView from '../BookDetailView.vue'
 
 const baseBook: Book = {
@@ -87,18 +88,20 @@ describe('BookDetailView', () => {
       expect(text).toContain('200')
       expect(text).toContain('50 / 200 ページ（25%）')
       expect(text).toContain('2026/1/2')
-      expect(wrapper.find('[aria-label="評価 4"]').text()).toBe('★★★★☆')
-      expect(wrapper.find('h3').text()).toBe('感想')
-      // 改行を保って表示する（whitespace-pre-wrap）
-      expect(wrapper.find('.whitespace-pre-wrap').element.textContent).toBe('面白かった\n二行目')
+      expect(wrapper.find('[role="radio"][aria-checked="true"]').attributes('aria-label')).toBe('4つ星')
+      // 感想は入力欄に入る（改行を保つ）
+      expect((wrapper.find('textarea').element as HTMLTextAreaElement).value).toBe('面白かった\n二行目')
     })
 
     it('未入力の項目は表示しない', async () => {
       stubServer({ ...baseBook, authors: [], isbn: null, pages: null, genre: null, review: null, rating: 0, current_page: null })
       const { wrapper } = await mountAt('/books/7')
       const text = wrapper.text()
-      for (const label of ['ISBN', '総ページ数', 'ジャンル', '感想', '読了日']) expect(text).not.toContain(label)
-      expect(wrapper.find('[aria-label^="評価"]').exists()).toBe(false)
+      for (const label of ['ISBN', '総ページ数', 'ジャンル', '読了日']) expect(text).not.toContain(label)
+      // 評価・感想は未入力でも入力欄を表示する
+      expect(wrapper.find('[role="radio"][aria-checked="true"]').exists()).toBe(false)
+      expect(wrapper.text()).toContain('未評価')
+      expect((wrapper.find('textarea').element as HTMLTextAreaElement).value).toBe('')
     })
 
     it('読了した本は読了日を表示し、進捗バーは出さない', async () => {
@@ -179,7 +182,7 @@ describe('BookDetailView', () => {
 
       const [, init] = callsOf(fetchMock, 'PUT')[0]!
       expect(JSON.parse(String(init?.body))).toMatchObject({ title: '坊っちゃん', status: 'reading', current_page: 50 })
-      expect(wrapper.find('form').exists()).toBe(false)
+      expect(wrapper.findComponent(BookForm).exists()).toBe(false)
       expect(wrapper.find('h2').text()).toBe('坊っちゃん')
     })
 
@@ -206,7 +209,7 @@ describe('BookDetailView', () => {
       await button(wrapper, 'キャンセル').trigger('click')
 
       expect(callsOf(fetchMock, 'PUT')).toHaveLength(0)
-      expect(wrapper.find('form').exists()).toBe(false)
+      expect(wrapper.findComponent(BookForm).exists()).toBe(false)
       expect(wrapper.find('h2').text()).toBe('吾輩は猫である')
     })
 
@@ -236,7 +239,7 @@ describe('BookDetailView', () => {
       await flushPromises()
 
       expect(wrapper.find('[role="alert"]').text()).toContain('同じISBNの本が既に登録されています')
-      expect(wrapper.find('form').exists()).toBe(true)
+      expect(wrapper.findComponent(BookForm).exists()).toBe(true)
       expect((wrapper.find('input[type="text"]').element as HTMLInputElement).value).toBe('編集中の題名')
     })
   })
@@ -296,5 +299,222 @@ describe('BookDetailView', () => {
     await flushPromises()
 
     expect(wrapper.find('h2').text()).toBe('本2')
+  })
+})
+
+describe('BookDetailView の進捗・評価・感想の更新', () => {
+  beforeEach(() => {
+    vi.spyOn(window, 'confirm').mockReturnValue(true)
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+    vi.unstubAllGlobals()
+  })
+
+  type Wrapper = Awaited<ReturnType<typeof mountAt>>['wrapper']
+
+  const putBody = (fn: ReturnType<typeof stubServer>, index = 0) =>
+    JSON.parse(String(callsOf(fn, 'PUT')[index]![1]?.body))
+  const star = (wrapper: Wrapper, n: number) => wrapper.find(`[role="radio"][aria-label="${n}つ星"]`)
+  const hasButton = (wrapper: Wrapper, text: string) => wrapper.findAll('button').some((b) => b.text() === text)
+  const checkedStar = (wrapper: Wrapper) =>
+    wrapper.find('[role="radio"][aria-checked="true"]').attributes('aria-label')
+
+  describe('現在のページ', () => {
+    it('読書中の本で現在のページを更新すると、その項目だけを送り、進捗表示も更新される', async () => {
+      const fetchMock = stubServer()
+      const { wrapper } = await mountAt('/books/7')
+
+      await wrapper.find('input[type="number"]').setValue('120')
+      await wrapper.find('form[novalidate]').trigger('submit')
+      await flushPromises()
+
+      expect(putBody(fetchMock)).toEqual({ current_page: 120 })
+      expect(wrapper.text()).toContain('120 / 200 ページ（60%）')
+    })
+
+    it('総ページ数を超える値は送らずにエラーを表示する', async () => {
+      const fetchMock = stubServer()
+      const { wrapper } = await mountAt('/books/7')
+
+      await wrapper.find('input[type="number"]').setValue('201')
+      await wrapper.find('form[novalidate]').trigger('submit')
+      await flushPromises()
+
+      expect(callsOf(fetchMock, 'PUT')).toHaveLength(0)
+      expect(wrapper.text()).toContain('総ページ数（200）を超えています')
+    })
+
+    it('読書中以外の本には現在のページの入力欄を出さない', async () => {
+      stubServer({ ...baseBook, status: 'want', current_page: null })
+      const { wrapper } = await mountAt('/books/7')
+      expect(wrapper.find('input[type="number"]').exists()).toBe(false)
+    })
+  })
+
+  describe('状態の切り替え', () => {
+    it('「読了にする」で状態だけを読了に更新し、読了日が表示される', async () => {
+      const fetchMock = vi.fn<typeof fetch>(async (_input, init) =>
+        init?.method === 'PUT'
+          ? Response.json({ ...baseBook, status: 'done', finished_at: '2026-03-04T12:00:00.000Z' })
+          : Response.json(baseBook),
+      )
+      vi.stubGlobal('fetch', fetchMock)
+      const { wrapper } = await mountAt('/books/7')
+
+      await button(wrapper, '読了にする').trigger('click')
+      await flushPromises()
+
+      const [, init] = callsOf(fetchMock, 'PUT')[0]!
+      expect(JSON.parse(String(init?.body))).toEqual({ status: 'done' })
+      expect(wrapper.text()).toContain('読了日')
+      expect(wrapper.text()).toContain('2026/3/4')
+      expect(hasButton(wrapper, '読了にする')).toBe(false)
+      expect(wrapper.find('input[type="number"]').exists()).toBe(false)
+    })
+
+    it('読みたい本には「読み始める」を出し、押すと読書中になる', async () => {
+      const fetchMock = stubServer({ ...baseBook, status: 'want', current_page: null })
+      const { wrapper } = await mountAt('/books/7')
+      expect(hasButton(wrapper, '読了にする')).toBe(false)
+
+      await button(wrapper, '読み始める').trigger('click')
+      await flushPromises()
+
+      expect(putBody(fetchMock)).toEqual({ status: 'reading' })
+      expect(wrapper.text()).toContain('読書中')
+      expect(wrapper.find('input[type="number"]').exists()).toBe(true)
+      expect(hasButton(wrapper, '読み始める')).toBe(false)
+    })
+
+    it('読了した本には状態の切り替えボタンを出さない', async () => {
+      stubServer({ ...baseBook, status: 'done', finished_at: '2026-03-04T12:00:00.000Z' })
+      const { wrapper } = await mountAt('/books/7')
+      expect(hasButton(wrapper, '読了にする')).toBe(false)
+      expect(hasButton(wrapper, '読み始める')).toBe(false)
+    })
+  })
+
+  describe('星評価', () => {
+    it('星を押すと評価だけを更新する', async () => {
+      const fetchMock = stubServer()
+      const { wrapper } = await mountAt('/books/7')
+
+      await star(wrapper, 5).trigger('click')
+      await flushPromises()
+
+      expect(putBody(fetchMock)).toEqual({ rating: 5 })
+      expect(checkedStar(wrapper)).toBe('5つ星')
+    })
+
+    it('今の評価と同じ星を押すと未評価に戻す', async () => {
+      const fetchMock = stubServer()
+      const { wrapper } = await mountAt('/books/7')
+
+      await star(wrapper, 4).trigger('click')
+      await flushPromises()
+
+      expect(putBody(fetchMock)).toEqual({ rating: 0 })
+      expect(wrapper.text()).toContain('未評価')
+    })
+
+    it('読みたい本でも評価できる', async () => {
+      const fetchMock = stubServer({ ...baseBook, status: 'want', rating: 0 })
+      const { wrapper } = await mountAt('/books/7')
+
+      await star(wrapper, 2).trigger('click')
+      await flushPromises()
+
+      expect(putBody(fetchMock)).toEqual({ rating: 2 })
+    })
+  })
+
+  describe('感想', () => {
+    it('感想を書いて保存すると、その項目だけを送る', async () => {
+      const fetchMock = stubServer({ ...baseBook, review: null })
+      const { wrapper } = await mountAt('/books/7')
+
+      await wrapper.find('textarea').setValue('  とても良かった  ')
+      await wrapper.find('form.space-y-2').trigger('submit')
+      await flushPromises()
+
+      expect(putBody(fetchMock)).toEqual({ review: 'とても良かった' })
+      expect((wrapper.find('textarea').element as HTMLTextAreaElement).value).toBe('とても良かった')
+      expect(wrapper.find('form.space-y-2 button[type="submit"]').attributes('disabled')).toBeDefined()
+    })
+
+    it('空にして保存すると感想が消える', async () => {
+      const fetchMock = stubServer()
+      const { wrapper } = await mountAt('/books/7')
+
+      await wrapper.find('textarea').setValue('')
+      await wrapper.find('form.space-y-2').trigger('submit')
+      await flushPromises()
+
+      expect(putBody(fetchMock)).toEqual({ review: null })
+    })
+  })
+
+  describe('更新中・失敗', () => {
+    it('更新中は他の操作を無効にし、二重に送らない', async () => {
+      let resolve!: (r: Response) => void
+      const fetchMock = vi.fn<typeof fetch>((_input, init) =>
+        init?.method === 'PUT' ? new Promise<Response>((r) => (resolve = r)) : Promise.resolve(Response.json(baseBook)),
+      )
+      vi.stubGlobal('fetch', fetchMock)
+      const { wrapper } = await mountAt('/books/7')
+
+      await star(wrapper, 5).trigger('click')
+      expect(wrapper.findAll('[role="radio"]').every((s) => s.attributes('disabled') !== undefined)).toBe(true)
+      expect(button(wrapper, '読了にする').attributes('disabled')).toBeDefined()
+      expect(wrapper.find('textarea').attributes('disabled')).toBeDefined()
+
+      await star(wrapper, 3).trigger('click')
+      expect(callsOf(fetchMock, 'PUT')).toHaveLength(1)
+
+      resolve(Response.json({ ...baseBook, rating: 5 }))
+      await flushPromises()
+      expect(button(wrapper, '読了にする').attributes('disabled')).toBeUndefined()
+    })
+
+    it('失敗したらエラーを表示し、書きかけの感想は残り、再操作できる', async () => {
+      let fail = true
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(async (_input: unknown, init?: RequestInit) => {
+          if (init?.method !== 'PUT') return Response.json(baseBook)
+          return fail
+            ? Response.json({ error: '保存できませんでした' }, { status: 500 })
+            : Response.json({ ...baseBook, rating: 5 })
+        }),
+      )
+      const { wrapper } = await mountAt('/books/7')
+      await wrapper.find('textarea').setValue('書きかけの感想')
+
+      await star(wrapper, 5).trigger('click')
+      await flushPromises()
+
+      expect(wrapper.find('[role="alert"]').text()).toContain('保存できませんでした')
+      expect((wrapper.find('textarea').element as HTMLTextAreaElement).value).toBe('書きかけの感想')
+      expect(star(wrapper, 5).attributes('disabled')).toBeUndefined()
+
+      fail = false
+      await star(wrapper, 5).trigger('click')
+      await flushPromises()
+      expect(wrapper.find('[role="alert"]').exists()).toBe(false)
+      expect(checkedStar(wrapper)).toBe('5つ星')
+    })
+
+    it('評価を更新しても、書きかけの感想は消えない', async () => {
+      stubServer()
+      const { wrapper } = await mountAt('/books/7')
+      await wrapper.find('textarea').setValue('書きかけの感想')
+
+      await star(wrapper, 5).trigger('click')
+      await flushPromises()
+
+      expect((wrapper.find('textarea').element as HTMLTextAreaElement).value).toBe('書きかけの感想')
+    })
   })
 })
