@@ -23,7 +23,8 @@ export default defineConfig({
     strictPort: true,
     proxy: {
       '/api': {
-        target: 'http://localhost:8080',
+        // バックエンドは 127.0.0.1 のみで待ち受けるため、localhost（::1 に解決され得る）は使わない
+        target: 'http://127.0.0.1:8080',
         changeOrigin: true,
       },
     },
