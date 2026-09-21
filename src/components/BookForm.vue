@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, reactive, ref, watch } from 'vue'
-import type { BookInput, BookStatus } from '@/api/books'
+import type { Book, BookInput, BookStatus } from '@/api/books'
+import { STATUS_OPTIONS } from '@/utils/book'
 
 const props = defineProps<{
   submitting?: boolean
@@ -9,26 +10,26 @@ const props = defineProps<{
   submitLabel?: string
   /** 書誌情報の自動入力。渡し直すたびに、書誌に関する項目を置き換える（状態・現在のページは変えない） */
   prefill?: Pick<BookInput, 'title' | 'authors' | 'isbn' | 'pages' | 'genre' | 'cover'> | null
+  /** 編集する本。最初の入力値になる（作成時は渡さない） */
+  initial?: Pick<Book, 'title' | 'authors' | 'isbn' | 'pages' | 'cover' | 'genre' | 'status' | 'current_page'>
+  /** 空にした項目を null として送る（編集で値を消すため）。作成では空の項目を送らない */
+  clearEmpty?: boolean
+  /** 指定するとキャンセルボタンを表示する */
+  cancelLabel?: string
 }>()
 
-const emit = defineEmits<{ submit: [input: BookInput] }>()
-
-const STATUS_OPTIONS: { value: BookStatus; label: string }[] = [
-  { value: 'want', label: '読みたい' },
-  { value: 'reading', label: '読書中' },
-  { value: 'done', label: '読了' },
-]
+const emit = defineEmits<{ submit: [input: BookInput]; cancel: [] }>()
 
 // number入力は未入力のとき '' になるため、型に含めておく
 const form = reactive({
-  title: '',
-  authors: '',
-  isbn: '',
-  pages: '' as number | '',
-  cover: '',
-  genre: '',
-  status: 'want' as BookStatus,
-  currentPage: '' as number | '',
+  title: props.initial?.title ?? '',
+  authors: (props.initial?.authors ?? []).join('、'),
+  isbn: props.initial?.isbn ?? '',
+  pages: (props.initial?.pages ?? '') as number | '',
+  cover: props.initial?.cover ?? '',
+  genre: props.initial?.genre ?? '',
+  status: (props.initial?.status ?? 'want') as BookStatus,
+  currentPage: (props.initial?.current_page ?? '') as number | '',
 })
 
 const validationError = ref<string | null>(null)
@@ -73,13 +74,22 @@ function onSubmit() {
   validationError.value = null
 
   const input: BookInput = { title: form.title.trim(), status: form.status }
-  if (authorList.value.length) input.authors = authorList.value
-  if (form.isbn.trim()) input.isbn = form.isbn.trim()
-  if (form.pages !== '') input.pages = form.pages
-  if (form.cover.trim()) input.cover = form.cover.trim()
-  if (form.genre.trim()) input.genre = form.genre.trim()
-  if (form.status === 'reading' && form.currentPage !== '') input.current_page = form.currentPage
-  emit('submit', input)
+  // 空の項目は、作成では送らず、編集（clearEmpty）では null で送って値を消す
+  const empty = props.clearEmpty ? null : undefined
+  const text = (value: string) => (value.trim() === '' ? empty : value.trim())
+  input.authors = authorList.value.length ? authorList.value : empty
+  input.isbn = text(form.isbn)
+  input.pages = form.pages === '' ? empty : form.pages
+  input.cover = text(form.cover)
+  input.genre = text(form.genre)
+  // 現在のページは読書中のときだけ扱う（他の状態では変更しない）
+  if (form.status === 'reading') input.current_page = form.currentPage === '' ? empty : form.currentPage
+  emit('submit', pruneUndefined(input))
+}
+
+/** undefined の項目を取り除く（JSON化で消えるが、テストや呼び出し側で扱いやすくするため） */
+function pruneUndefined(input: BookInput): BookInput {
+  return Object.fromEntries(Object.entries(input).filter(([, v]) => v !== undefined)) as unknown as BookInput
 }
 
 const inputClass = 'mt-1 w-full rounded border border-stone-300 bg-white px-3 py-2 text-sm'
@@ -156,12 +166,23 @@ const inputClass = 'mt-1 w-full rounded border border-stone-300 bg-white px-3 py
       </label>
     </div>
 
-    <button
-      type="submit"
-      :disabled="submitting"
-      class="w-full rounded bg-stone-900 px-4 py-2 text-sm font-semibold text-white hover:bg-stone-700 disabled:opacity-50 sm:w-auto"
-    >
-      {{ submitting ? '送信中…' : (submitLabel ?? '登録する') }}
-    </button>
+    <div class="flex flex-col gap-2 sm:flex-row">
+      <button
+        type="submit"
+        :disabled="submitting"
+        class="rounded bg-stone-900 px-4 py-2 text-sm font-semibold text-white hover:bg-stone-700 disabled:opacity-50"
+      >
+        {{ submitting ? '送信中…' : (submitLabel ?? '登録する') }}
+      </button>
+      <button
+        v-if="cancelLabel"
+        type="button"
+        :disabled="submitting"
+        class="rounded border border-stone-300 bg-white px-4 py-2 text-sm hover:bg-stone-50 disabled:opacity-50"
+        @click="emit('cancel')"
+      >
+        {{ cancelLabel }}
+      </button>
+    </div>
   </form>
 </template>

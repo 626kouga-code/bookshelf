@@ -20,16 +20,21 @@ export interface Book {
   finished_at: string | null
 }
 
-/** 本の登録に送る項目。title 以外は省略できる。 */
+/**
+ * 本の登録・更新に送る項目。登録では title 以外は省略できる。
+ * 更新では、省略した項目は変更されず、null を送ると値が消える。
+ */
 export interface BookInput {
   title: string
-  authors?: string[]
-  isbn?: string
-  pages?: number
-  cover?: string
-  genre?: string
+  authors?: string[] | null
+  isbn?: string | null
+  pages?: number | null
+  cover?: string | null
+  genre?: string | null
   status?: BookStatus
-  current_page?: number
+  current_page?: number | null
+  rating?: number
+  review?: string | null
 }
 
 export interface BookListParams {
@@ -59,4 +64,21 @@ export function createBook(input: BookInput): Promise<Book> {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(input),
   })
+}
+
+export function getBook(id: number): Promise<Book> {
+  return request<Book>(`/api/books/${id}`)
+}
+
+/** 本を更新する。送った項目だけが更新される（部分更新）。 */
+export function updateBook(id: number, input: Partial<BookInput>): Promise<Book> {
+  return request<Book>(`/api/books/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  })
+}
+
+export function deleteBook(id: number): Promise<void> {
+  return request<void>(`/api/books/${id}`, { method: 'DELETE' })
 }

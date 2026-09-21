@@ -153,3 +153,92 @@ describe('BookForm の自動入力（prefill）', () => {
     expect(wrapper.find('[role="alert"]').exists()).toBe(false)
   })
 })
+
+describe('BookForm の編集（initial / clearEmpty）', () => {
+  const book = {
+    title: '吾輩は猫である',
+    authors: ['夏目漱石', '別の著者'],
+    isbn: '9784873115658',
+    pages: 200,
+    cover: 'https://example.com/c.jpg',
+    genre: '小説',
+    status: 'reading' as const,
+    current_page: 50,
+  }
+
+  const value = (wrapper: ReturnType<typeof mountForm>, label: string) =>
+    (fieldByLabel(wrapper, label).element as HTMLInputElement).value
+
+  it('渡した本の内容が最初の入力値になる', () => {
+    const wrapper = mountForm({ initial: book })
+    expect(value(wrapper, 'タイトル')).toBe('吾輩は猫である')
+    expect(value(wrapper, '著者')).toBe('夏目漱石、別の著者')
+    expect(value(wrapper, 'ISBN')).toBe('9784873115658')
+    expect(value(wrapper, '総ページ数')).toBe('200')
+    expect(value(wrapper, 'ジャンル')).toBe('小説')
+    expect(value(wrapper, '表紙画像のURL')).toBe('https://example.com/c.jpg')
+    expect(value(wrapper, '状態')).toBe('reading')
+    expect(value(wrapper, '現在のページ')).toBe('50')
+  })
+
+  it('変更しないで送ると、元の内容がそのまま送られる', async () => {
+    const wrapper = mountForm({ initial: book, clearEmpty: true })
+    await wrapper.find('form').trigger('submit')
+    expect(submitted(wrapper)![0]![0]).toEqual({
+      title: '吾輩は猫である',
+      authors: ['夏目漱石', '別の著者'],
+      isbn: '9784873115658',
+      pages: 200,
+      cover: 'https://example.com/c.jpg',
+      genre: '小説',
+      status: 'reading',
+      current_page: 50,
+    })
+  })
+
+  it('clearEmpty のとき、空にした項目は null で送って値を消す', async () => {
+    const wrapper = mountForm({ initial: book, clearEmpty: true })
+    await fieldByLabel(wrapper, '著者').setValue('')
+    await fieldByLabel(wrapper, 'ISBN').setValue('  ')
+    await fieldByLabel(wrapper, '総ページ数').setValue('')
+    await fieldByLabel(wrapper, 'ジャンル').setValue('')
+    await fieldByLabel(wrapper, '表紙画像のURL').setValue('')
+    await fieldByLabel(wrapper, '現在のページ').setValue('')
+    await wrapper.find('form').trigger('submit')
+    expect(submitted(wrapper)![0]![0]).toEqual({
+      title: '吾輩は猫である',
+      authors: null,
+      isbn: null,
+      pages: null,
+      cover: null,
+      genre: null,
+      status: 'reading',
+      current_page: null,
+    })
+  })
+
+  it('clearEmpty でも、読書中以外では現在のページを送らない（変更しない）', async () => {
+    const wrapper = mountForm({ initial: book, clearEmpty: true })
+    await fieldByLabel(wrapper, '状態').setValue('done')
+    await wrapper.find('form').trigger('submit')
+    expect(submitted(wrapper)![0]![0]).not.toHaveProperty('current_page')
+  })
+
+  it('clearEmpty でなければ、空の項目は送らない', async () => {
+    const wrapper = mountForm({ initial: { ...book, genre: null } })
+    await wrapper.find('form').trigger('submit')
+    expect(submitted(wrapper)![0]![0]).not.toHaveProperty('genre')
+  })
+
+  it('cancelLabel があればキャンセルボタンを表示し、押すと cancel を通知する', async () => {
+    const wrapper = mountForm({ cancelLabel: 'キャンセル' })
+    const cancel = wrapper.findAll('button').find((b) => b.text() === 'キャンセル')!
+    await cancel.trigger('click')
+    expect(wrapper.emitted('cancel')).toHaveLength(1)
+    expect(submitted(wrapper)).toBeUndefined()
+  })
+
+  it('cancelLabel がなければキャンセルボタンを表示しない', () => {
+    expect(mountForm().findAll('button')).toHaveLength(1)
+  })
+})
