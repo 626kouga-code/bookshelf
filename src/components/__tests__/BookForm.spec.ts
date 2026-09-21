@@ -97,3 +97,59 @@ describe('BookForm', () => {
     expect(button.text()).toBe('送信中…')
   })
 })
+
+describe('BookForm の自動入力（prefill）', () => {
+  const candidate = {
+    title: 'リーダブルコード',
+    authors: ['Dustin Boswell', 'Trevor Foucher'],
+    isbn: '9784873115658',
+    pages: 260,
+    genre: 'Computers',
+    cover: 'https://example.com/c.jpg',
+  }
+
+  it('候補を渡すと書誌に関する項目が入力される', async () => {
+    const wrapper = mountForm()
+    await wrapper.setProps({ prefill: candidate })
+
+    expect((fieldByLabel(wrapper, 'タイトル').element as HTMLInputElement).value).toBe('リーダブルコード')
+    expect((fieldByLabel(wrapper, '著者').element as HTMLInputElement).value).toBe('Dustin Boswell、Trevor Foucher')
+    expect((fieldByLabel(wrapper, 'ISBN').element as HTMLInputElement).value).toBe('9784873115658')
+
+    await wrapper.find('form').trigger('submit')
+    expect(submitted(wrapper)![0]![0]).toEqual({ ...candidate, status: 'want' })
+  })
+
+  it('入力後も編集できる', async () => {
+    const wrapper = mountForm()
+    await wrapper.setProps({ prefill: candidate })
+    await fieldByLabel(wrapper, 'タイトル').setValue('リーダブルコード 第2版')
+    await wrapper.find('form').trigger('submit')
+    expect(submitted(wrapper)![0]![0]).toMatchObject({ title: 'リーダブルコード 第2版' })
+  })
+
+  it('別の候補を選ぶと、前の候補の値は残らない', async () => {
+    const wrapper = mountForm()
+    await wrapper.setProps({ prefill: candidate })
+    await wrapper.setProps({ prefill: { title: '別の本' } })
+    await wrapper.find('form').trigger('submit')
+    expect(submitted(wrapper)![0]![0]).toEqual({ title: '別の本', status: 'want' })
+  })
+
+  it('状態と現在のページは変更しない', async () => {
+    const wrapper = mountForm()
+    await fieldByLabel(wrapper, '状態').setValue('reading')
+    await fieldByLabel(wrapper, '現在のページ').setValue('30')
+    await wrapper.setProps({ prefill: candidate })
+    await wrapper.find('form').trigger('submit')
+    expect(submitted(wrapper)![0]![0]).toMatchObject({ status: 'reading', current_page: 30 })
+  })
+
+  it('入力エラーの表示は自動入力でクリアされる', async () => {
+    const wrapper = mountForm()
+    await wrapper.find('form').trigger('submit')
+    expect(wrapper.find('[role="alert"]').exists()).toBe(true)
+    await wrapper.setProps({ prefill: candidate })
+    expect(wrapper.find('[role="alert"]').exists()).toBe(false)
+  })
+})

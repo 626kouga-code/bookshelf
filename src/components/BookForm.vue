@@ -1,12 +1,14 @@
 <script setup lang="ts">
-import { computed, reactive, ref } from 'vue'
+import { computed, reactive, ref, watch } from 'vue'
 import type { BookInput, BookStatus } from '@/api/books'
 
-defineProps<{
+const props = defineProps<{
   submitting?: boolean
   /** サーバーから返ったエラー（ISBN重複など） */
   error?: string | null
   submitLabel?: string
+  /** 書誌情報の自動入力。渡し直すたびに、書誌に関する項目を置き換える（状態・現在のページは変えない） */
+  prefill?: Pick<BookInput, 'title' | 'authors' | 'isbn' | 'pages' | 'genre' | 'cover'> | null
 }>()
 
 const emit = defineEmits<{ submit: [input: BookInput] }>()
@@ -30,6 +32,21 @@ const form = reactive({
 })
 
 const validationError = ref<string | null>(null)
+
+// 候補が無い項目は空にして、前に選んだ候補の値が残らないようにする
+watch(
+  () => props.prefill,
+  (p) => {
+    if (!p) return
+    form.title = p.title
+    form.authors = (p.authors ?? []).join('、')
+    form.isbn = p.isbn ?? ''
+    form.pages = p.pages ?? ''
+    form.genre = p.genre ?? ''
+    form.cover = p.cover ?? ''
+    validationError.value = null
+  },
+)
 
 const isPositiveInt = (v: number | '', min: number) => v === '' || (Number.isInteger(v) && v >= min)
 
