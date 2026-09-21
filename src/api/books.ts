@@ -20,6 +20,18 @@ export interface Book {
   finished_at: string | null
 }
 
+/** 本の登録に送る項目。title 以外は省略できる。 */
+export interface BookInput {
+  title: string
+  authors?: string[]
+  isbn?: string
+  pages?: number
+  cover?: string
+  genre?: string
+  status?: BookStatus
+  current_page?: number
+}
+
 export interface BookListParams {
   status?: BookStatus
   genre?: string
@@ -38,4 +50,13 @@ export function listBooks(params: BookListParams = {}): Promise<Book[]> {
   }
   const qs = query.toString()
   return request<Book[]>(qs ? `/api/books?${qs}` : '/api/books')
+}
+
+/** 本を登録する。同じISBNが既にあれば 409 の ApiRequestError になる。 */
+export function createBook(input: BookInput): Promise<Book> {
+  return request<Book>('/api/books', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  })
 }

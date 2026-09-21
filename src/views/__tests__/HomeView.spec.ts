@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
+import { createMemoryHistory, createRouter } from 'vue-router'
 import type { Book } from '@/api/books'
 import HomeView from '../HomeView.vue'
 
@@ -33,7 +34,11 @@ const lastQuery = (fn: ReturnType<typeof stubFetch>) =>
   Object.fromEntries(new URL(String(fn.mock.lastCall![0]), 'http://localhost').searchParams)
 
 async function mountView() {
-  const wrapper = mount(HomeView, { global: { plugins: [createPinia()] } })
+  const router = createRouter({
+    history: createMemoryHistory(),
+    routes: [{ path: '/', component: HomeView }, { path: '/books/new', component: { template: '<div />' } }],
+  })
+  const wrapper = mount(HomeView, { global: { plugins: [createPinia(), router] } })
   await flushPromises()
   return wrapper
 }
@@ -60,6 +65,20 @@ describe('HomeView', () => {
   it('本がなければ「本棚はまだ空です」を表示する', async () => {
     stubFetch(() => Response.json([]))
     expect((await mountView()).text()).toContain('本棚はまだ空です')
+  })
+
+  it('本棚が空のときは本の追加画面へのリンクを表示する', async () => {
+    stubFetch(() => Response.json([]))
+    const wrapper = await mountView()
+    expect(wrapper.find('a[href="/books/new"]').exists()).toBe(true)
+  })
+
+  it('絞り込み結果が0件のときは追加リンクを表示しない', async () => {
+    stubFetch(() => Response.json([]))
+    const wrapper = await mountView()
+    await wrapper.findAll('[role="tab"]')[3]!.trigger('click')
+    await flushPromises()
+    expect(wrapper.find('a[href="/books/new"]').exists()).toBe(false)
   })
 
   it('取得に失敗したらエラーを表示し、再読み込みで復旧できる', async () => {

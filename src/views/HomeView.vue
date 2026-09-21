@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { RouterLink } from 'vue-router'
 import { storeToRefs } from 'pinia'
 import BookCard from '@/components/BookCard.vue'
 import { useBooksStore } from '@/stores/books'
@@ -98,7 +99,11 @@ onBeforeUnmount(() => clearTimeout(debounceTimer))
     <p v-else-if="loading && books.length === 0" class="mt-6 text-stone-500">読み込み中…</p>
 
     <p v-else-if="books.length === 0" class="mt-6 text-stone-600">
-      {{ isFiltered ? '条件に合う本はありません。' : '本棚はまだ空です。' }}
+      <template v-if="isFiltered">条件に合う本はありません。</template>
+      <template v-else>
+        本棚はまだ空です。
+        <RouterLink to="/books/new" class="ml-1 underline">本を追加する</RouterLink>
+      </template>
     </p>
 
     <ul v-else class="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2" :class="{ 'opacity-60': loading }">
