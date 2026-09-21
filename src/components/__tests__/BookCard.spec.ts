@@ -1,0 +1,59 @@
+import { describe, expect, it } from 'vitest'
+import { mount } from '@vue/test-utils'
+import type { Book } from '@/api/books'
+import BookCard from '../BookCard.vue'
+
+const base: Book = {
+  id: 1,
+  title: '吾輩は猫である',
+  authors: ['夏目漱石', '別の著者'],
+  isbn: null,
+  pages: 200,
+  cover: null,
+  genre: '小説',
+  status: 'reading',
+  current_page: 50,
+  rating: 4,
+  review: null,
+  added_at: '2026-01-01T00:00:00.000Z',
+  finished_at: null,
+}
+
+const render = (book: Partial<Book> = {}) => mount(BookCard, { props: { book: { ...base, ...book } } })
+
+describe('BookCard', () => {
+  it('タイトル・著者・状態・ジャンルを表示する', () => {
+    const text = render().text()
+    expect(text).toContain('吾輩は猫である')
+    expect(text).toContain('夏目漱石、別の著者')
+    expect(text).toContain('読書中')
+    expect(text).toContain('小説')
+  })
+
+  it('読書中は進捗（ページ数と割合）を表示する', () => {
+    expect(render().text()).toContain('50 / 200 ページ（25%）')
+  })
+
+  it('読書中でなければ進捗を表示しない', () => {
+    expect(render({ status: 'done' }).text()).not.toContain('ページ（')
+  })
+
+  it('進捗は100%を超えない', () => {
+    expect(render({ current_page: 500 }).text()).toContain('（100%）')
+  })
+
+  it('総ページ数がなければ進捗を表示しない', () => {
+    expect(render({ pages: null }).text()).not.toContain('ページ（')
+  })
+
+  it('評価があれば星で表示し、未評価なら表示しない', () => {
+    expect(render({ rating: 4 }).text()).toContain('★★★★☆')
+    expect(render({ rating: 0 }).find('[aria-label^="評価"]').exists()).toBe(false)
+  })
+
+  it('表紙があれば画像を、なければ代替表示を出す', () => {
+    const withCover = render({ cover: 'https://example.com/c.jpg' })
+    expect(withCover.find('img').attributes('src')).toBe('https://example.com/c.jpg')
+    expect(render().find('img').exists()).toBe(false)
+  })
+})
