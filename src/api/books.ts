@@ -82,3 +82,47 @@ export function updateBook(id: number, input: Partial<BookInput>): Promise<Book>
 export function deleteBook(id: number): Promise<void> {
   return request<void>(`/api/books/${id}`, { method: 'DELETE' })
 }
+
+export interface ReadingLog {
+  id: number
+  book_id: number
+  date: string
+  pages: number
+}
+
+export interface ReadingLogInput {
+  date: string
+  pages: number
+}
+
+export interface Prediction {
+  available: boolean
+  reason?: string
+  remainingPages?: number
+  pagesPerDay?: number
+  estimatedDays?: number
+}
+
+/** 対象の本の読書ログを、日付の新しい順で取得する。 */
+export function listLogs(bookId: number): Promise<ReadingLog[]> {
+  return request<ReadingLog[]>(`/api/books/${bookId}/logs`)
+}
+
+/** 読書ログを追加する。本の current_page もサーバー側で連動して更新される。 */
+export function addLog(bookId: number, input: ReadingLogInput): Promise<ReadingLog> {
+  return request<ReadingLog>(`/api/books/${bookId}/logs`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  })
+}
+
+/** 読書ログを削除する。本の current_page もサーバー側で連動して更新される。 */
+export function deleteLog(bookId: number, logId: number): Promise<void> {
+  return request<void>(`/api/books/${bookId}/logs/${logId}`, { method: 'DELETE' })
+}
+
+/** 直近の読書ペースからの読了予測を取得する。 */
+export function getPrediction(bookId: number): Promise<Prediction> {
+  return request<Prediction>(`/api/books/${bookId}/prediction`)
+}

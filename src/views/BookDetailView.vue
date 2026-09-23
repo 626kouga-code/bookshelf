@@ -4,8 +4,22 @@ import { RouterLink, useRoute, useRouter } from 'vue-router'
 import BookForm from '@/components/BookForm.vue'
 import ProgressUpdate from '@/components/ProgressUpdate.vue'
 import RatingInput from '@/components/RatingInput.vue'
+import ReadingLogSection from '@/components/ReadingLogSection.vue'
 import ReviewEditor from '@/components/ReviewEditor.vue'
-import { deleteBook, getBook, updateBook, type Book, type BookInput } from '@/api/books'
+import {
+  addLog,
+  deleteBook,
+  deleteLog,
+  getBook,
+  getPrediction,
+  listLogs,
+  updateBook,
+  type Book,
+  type BookInput,
+  type Prediction,
+  type ReadingLog,
+  type ReadingLogInput,
+} from '@/api/books'
 import { ApiRequestError } from '@/api/client'
 import { formatDate, progressOf, STATUS_CLASSES, STATUS_LABELS } from '@/utils/book'
 
@@ -32,6 +46,33 @@ const bookId = computed(() => {
 
 const progress = computed(() => (book.value ? progressOf(book.value) : null))
 
+const logs = ref<ReadingLog[]>([])
+const prediction = ref<Prediction | null>(null)
+const logsLoading = ref(false)
+
+/** 読書ログの一覧と、読書中のときの読了予測を読み込み直す。「読みたい」は対象外。 */
+async function refreshLogs() {
+  if (!book.value || book.value.status === 'want') {
+    logs.value = []
+    prediction.value = null
+    return
+  }
+  const id = book.value.id
+  logsLoading.value = true
+  try {
+    const [logList, pred] = await Promise.all([
+      listLogs(id),
+      book.value.status === 'reading' ? getPrediction(id) : Promise.resolve(null),
+    ])
+    logs.value = logList
+    prediction.value = pred
+  } catch (e) {
+    actionError.value = e instanceof Error ? e.message : '読書ログの取得に失敗しました'
+  } finally {
+    logsLoading.value = false
+  }
+}
+
 // 連続して読み込んだとき、古いリクエストの結果で新しい結果を上書きしない
 let latestRequest = 0
 
@@ -51,7 +92,10 @@ async function load() {
   loading.value = true
   try {
     const result = await getBook(bookId.value)
-    if (requestId === latestRequest) book.value = result
+    if (requestId === latestRequest) {
+      book.value = result
+      await refreshLogs()
+    }
   } catch (e) {
     if (requestId !== latestRequest) return
     loadError.value = {
@@ -91,8 +135,41 @@ async function patchBook(patch: Partial<BookInput>) {
   actionError.value = null
   try {
     book.value = await updateBook(book.value.id, patch)
+    await refreshLogs()
   } catch (e) {
     actionError.value = e instanceof Error ? e.message : '更新に失敗しました'
+  } finally {
+    updating.value = false
+  }
+}
+
+/** 読書ログを記録する。本の current_page はサーバー側で連動して更新される。 */
+async function onAddLog(input: ReadingLogInput) {
+  if (!book.value || updating.value || deleting.value) return
+  updating.value = true
+  actionError.value = null
+  try {
+    await addLog(book.value.id, input)
+    book.value = await getBook(book.value.id)
+    await refreshLogs()
+  } catch (e) {
+    actionError.value = e instanceof Error ? e.message : '読書ログの記録に失敗しました'
+  } finally {
+    updating.value = false
+  }
+}
+
+/** 読書ログを削除する。本の current_page はサーバー側で連動して更新される。 */
+async function onDeleteLog(logId: number) {
+  if (!book.value || updating.value || deleting.value) return
+  updating.value = true
+  actionError.value = null
+  try {
+    await deleteLog(book.value.id, logId)
+    book.value = await getBook(book.value.id)
+    await refreshLogs()
+  } catch (e) {
+    actionError.value = e instanceof Error ? e.message : '読書ログの削除に失敗しました'
   } finally {
     updating.value = false
   }
@@ -205,6 +282,18 @@ async function onDelete() {
           >
             読み始める
           </button>
+        </section>
+
+        <section v-if="book.status !== 'want'" aria-label="読書ログ" class="mt-6">
+          <ReadingLogSection
+            :logs="logs"
+            :prediction="prediction"
+            :read-only="book.status === 'done'"
+            :disabled="updating || deleting"
+            :loading="logsLoading"
+            @add="onAddLog"
+            @delete="onDeleteLog"
+          />
         </section>
 
         <section aria-label="評価" class="mt-6">
