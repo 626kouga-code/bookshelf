@@ -3,20 +3,26 @@ import { computed, ref, watch } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
 import BookForm from '@/components/BookForm.vue'
 import ProgressUpdate from '@/components/ProgressUpdate.vue'
+import QuoteSection from '@/components/QuoteSection.vue'
 import RatingInput from '@/components/RatingInput.vue'
 import ReadingLogSection from '@/components/ReadingLogSection.vue'
 import ReviewEditor from '@/components/ReviewEditor.vue'
 import {
   addLog,
+  addQuote,
   deleteBook,
   deleteLog,
+  deleteQuote,
   getBook,
   getPrediction,
   listLogs,
+  listQuotes,
   updateBook,
   type Book,
   type BookInput,
   type Prediction,
+  type Quote,
+  type QuoteInput,
   type ReadingLog,
   type ReadingLogInput,
 } from '@/api/books'
@@ -73,6 +79,24 @@ async function refreshLogs() {
   }
 }
 
+const quotes = ref<Quote[]>([])
+const quotesLoading = ref(false)
+
+async function refreshQuotes() {
+  if (!book.value) {
+    quotes.value = []
+    return
+  }
+  quotesLoading.value = true
+  try {
+    quotes.value = await listQuotes(book.value.id)
+  } catch (e) {
+    actionError.value = e instanceof Error ? e.message : '引用の取得に失敗しました'
+  } finally {
+    quotesLoading.value = false
+  }
+}
+
 // 連続して読み込んだとき、古いリクエストの結果で新しい結果を上書きしない
 let latestRequest = 0
 
@@ -94,7 +118,7 @@ async function load() {
     const result = await getBook(bookId.value)
     if (requestId === latestRequest) {
       book.value = result
-      await refreshLogs()
+      await Promise.all([refreshLogs(), refreshQuotes()])
     }
   } catch (e) {
     if (requestId !== latestRequest) return
@@ -170,6 +194,36 @@ async function onDeleteLog(logId: number) {
     await refreshLogs()
   } catch (e) {
     actionError.value = e instanceof Error ? e.message : '読書ログの削除に失敗しました'
+  } finally {
+    updating.value = false
+  }
+}
+
+/** 引用を追加する。 */
+async function onAddQuote(input: QuoteInput) {
+  if (!book.value || updating.value || deleting.value) return
+  updating.value = true
+  actionError.value = null
+  try {
+    await addQuote(book.value.id, input)
+    await refreshQuotes()
+  } catch (e) {
+    actionError.value = e instanceof Error ? e.message : '引用の追加に失敗しました'
+  } finally {
+    updating.value = false
+  }
+}
+
+/** 引用を削除する。 */
+async function onDeleteQuote(quoteId: number) {
+  if (!book.value || updating.value || deleting.value) return
+  updating.value = true
+  actionError.value = null
+  try {
+    await deleteQuote(book.value.id, quoteId)
+    await refreshQuotes()
+  } catch (e) {
+    actionError.value = e instanceof Error ? e.message : '引用の削除に失敗しました'
   } finally {
     updating.value = false
   }
@@ -331,6 +385,16 @@ async function onDelete() {
             :review="book.review"
             :disabled="updating || deleting"
             @save="patchBook({ review: $event })"
+          />
+        </section>
+
+        <section aria-label="引用" class="mt-6">
+          <QuoteSection
+            :quotes="quotes"
+            :disabled="updating || deleting"
+            :loading="quotesLoading"
+            @add="onAddQuote"
+            @delete="onDeleteQuote"
           />
         </section>
 

@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import { createMemoryHistory, createRouter } from 'vue-router'
-import type { Book, ReadingLog } from '@/api/books'
+import type { Book, Quote, ReadingLog } from '@/api/books'
 import BookForm from '@/components/BookForm.vue'
 import BookDetailView from '../BookDetailView.vue'
 
@@ -25,10 +25,16 @@ const baseBook: Book = {
  * 本を1冊だけ持つ簡易サーバー。PUT は送られた項目でマージして返す。
  * 読書ログの追加・削除は本物のAPIと同様に current_page と連動する。
  */
-function stubServer(initial: Book | null = baseBook, initialLogs: ReadingLog[] = []) {
+function stubServer(
+  initial: Book | null = baseBook,
+  initialLogs: ReadingLog[] = [],
+  initialQuotes: Quote[] = [],
+) {
   let stored = initial
   let logs = [...initialLogs]
   let nextLogId = Math.max(0, ...logs.map((l) => l.id)) + 1
+  let quotes = [...initialQuotes]
+  let nextQuoteId = Math.max(0, ...quotes.map((q) => q.id)) + 1
   const fn = vi.fn<typeof fetch>(async (input, init) => {
     const path = String(input)
     const method = init?.method ?? 'GET'
@@ -56,6 +62,20 @@ function stubServer(initial: Book | null = baseBook, initialLogs: ReadingLog[] =
         return new Response(null, { status: 204 })
       }
     }
+    if (path.includes('/quotes')) {
+      if (method === 'GET') return Response.json(quotes)
+      if (method === 'POST') {
+        const body = JSON.parse(String(init?.body)) as { text: string; page?: number | null }
+        const created: Quote = { id: nextQuoteId++, book_id: stored.id, text: body.text, page: body.page ?? null }
+        quotes = [created, ...quotes]
+        return Response.json(created, { status: 201 })
+      }
+      if (method === 'DELETE') {
+        const id = Number(path.split('/').pop())
+        quotes = quotes.filter((q) => q.id !== id)
+        return new Response(null, { status: 204 })
+      }
+    }
 
     if (method === 'GET') return Response.json(stored)
     if (method === 'PUT') {
@@ -74,6 +94,16 @@ function stubServer(initial: Book | null = baseBook, initialLogs: ReadingLog[] =
 
 const callsOf = (fn: ReturnType<typeof stubServer>, method: string) =>
   fn.mock.calls.filter(([, init]) => (init?.method ?? 'GET') === method)
+
+/**
+ * 読書ログ・引用・読了予測への取得に、テスト対象外なら既定の空応答を返す（対象なら null）。
+ * これらのエンドポイントを気にしない簡易モックで使う。
+ */
+function defaultSubResource(path: string): Response | null {
+  if (path.endsWith('/prediction')) return Response.json({ available: false, reason: '直近の読書ログがありません' })
+  if (path.includes('/logs') || path.includes('/quotes')) return Response.json([])
+  return null
+}
 
 async function mountAt(path: string) {
   const router = createRouter({
@@ -253,11 +283,10 @@ describe('BookDetailView', () => {
     })
 
     it('保存に失敗したらエラーを表示して編集を続けられる（ISBN重複など）', async () => {
-      const fetchMock = vi.fn<typeof fetch>(async (_input, init) =>
-        init?.method === 'PUT'
-          ? Response.json({ error: '同じISBNの本が既に登録されています' }, { status: 409 })
-          : Response.json(baseBook),
-      )
+      const fetchMock = vi.fn<typeof fetch>(async (input, init) => {
+        if (init?.method === 'PUT') return Response.json({ error: '同じISBNの本が既に登録されています' }, { status: 409 })
+        return defaultSubResource(String(input)) ?? Response.json(baseBook)
+      })
       vi.stubGlobal('fetch', fetchMock)
       const { wrapper } = await mountAt('/books/7')
       await button(wrapper, '編集').trigger('click')
@@ -300,9 +329,10 @@ describe('BookDetailView', () => {
     it('削除に失敗したらエラーを表示して画面に留まる', async () => {
       vi.stubGlobal(
         'fetch',
-        vi.fn(async (_input: unknown, init?: RequestInit) =>
-          init?.method === 'DELETE' ? new Response('boom', { status: 500 }) : Response.json(baseBook),
-        ),
+        vi.fn(async (input: unknown, init?: RequestInit) => {
+          if (init?.method === 'DELETE') return new Response('boom', { status: 500 })
+          return defaultSubResource(String(input)) ?? Response.json(baseBook)
+        }),
       )
       const { wrapper, router } = await mountAt('/books/7')
 
@@ -316,9 +346,13 @@ describe('BookDetailView', () => {
   })
 
   it('別の本のページに移動すると、その本を読み込み直す', async () => {
-    const fetchMock = vi.fn<typeof fetch>(async (input) =>
-      Response.json({ ...baseBook, id: Number(String(input).split('/').pop()), title: `本${String(input).split('/').pop()}` }),
-    )
+    const fetchMock = vi.fn<typeof fetch>(async (input) => {
+      const path = String(input)
+      const sub = defaultSubResource(path)
+      if (sub) return sub
+      const id = path.split('/').pop()
+      return Response.json({ ...baseBook, id: Number(id), title: `本${id}` })
+    })
     vi.stubGlobal('fetch', fetchMock)
     const { wrapper, router } = await mountAt('/books/1')
     expect(wrapper.find('h2').text()).toBe('本1')
@@ -377,17 +411,21 @@ describe('BookDetailView の進捗・評価・感想の更新', () => {
     it('読書中以外の本には現在のページの入力欄を出さない', async () => {
       stubServer({ ...baseBook, status: 'want', current_page: null })
       const { wrapper } = await mountAt('/books/7')
-      expect(wrapper.find('input[type="number"]').exists()).toBe(false)
+      expect(wrapper.find('[aria-label="進捗"] input[type="number"]').exists()).toBe(false)
     })
   })
 
   describe('状態の切り替え', () => {
     it('「読了にする」で状態だけを読了に更新し、読了日が表示される', async () => {
-      const fetchMock = vi.fn<typeof fetch>(async (_input, init) =>
-        init?.method === 'PUT'
-          ? Response.json({ ...baseBook, status: 'done', finished_at: '2026-03-04T12:00:00.000Z' })
-          : Response.json(baseBook),
-      )
+      const fetchMock = vi.fn<typeof fetch>(async (input, init) => {
+        const path = String(input)
+        if (init?.method === 'PUT') {
+          return Response.json({ ...baseBook, status: 'done', finished_at: '2026-03-04T12:00:00.000Z' })
+        }
+        if (path.endsWith('/prediction')) return Response.json({ available: false, reason: '既に最後まで読んでいます' })
+        if (path.includes('/logs') || path.includes('/quotes')) return Response.json([])
+        return Response.json(baseBook)
+      })
       vi.stubGlobal('fetch', fetchMock)
       const { wrapper } = await mountAt('/books/7')
 
@@ -399,7 +437,7 @@ describe('BookDetailView の進捗・評価・感想の更新', () => {
       expect(wrapper.text()).toContain('読了日')
       expect(wrapper.text()).toContain('2026/3/4')
       expect(hasButton(wrapper, '読了にする')).toBe(false)
-      expect(wrapper.find('input[type="number"]').exists()).toBe(false)
+      expect(wrapper.find('[aria-label="進捗"] input[type="number"]').exists()).toBe(false)
     })
 
     it('読みたい本には「読み始める」を出し、押すと読書中になる', async () => {
@@ -487,9 +525,10 @@ describe('BookDetailView の進捗・評価・感想の更新', () => {
   describe('更新中・失敗', () => {
     it('更新中は他の操作を無効にし、二重に送らない', async () => {
       let resolve!: (r: Response) => void
-      const fetchMock = vi.fn<typeof fetch>((_input, init) =>
-        init?.method === 'PUT' ? new Promise<Response>((r) => (resolve = r)) : Promise.resolve(Response.json(baseBook)),
-      )
+      const fetchMock = vi.fn<typeof fetch>((input, init) => {
+        if (init?.method === 'PUT') return new Promise<Response>((r) => (resolve = r))
+        return Promise.resolve(defaultSubResource(String(input)) ?? Response.json(baseBook))
+      })
       vi.stubGlobal('fetch', fetchMock)
       const { wrapper } = await mountAt('/books/7')
 
@@ -510,8 +549,8 @@ describe('BookDetailView の進捗・評価・感想の更新', () => {
       let fail = true
       vi.stubGlobal(
         'fetch',
-        vi.fn(async (_input: unknown, init?: RequestInit) => {
-          if (init?.method !== 'PUT') return Response.json(baseBook)
+        vi.fn(async (input: unknown, init?: RequestInit) => {
+          if (init?.method !== 'PUT') return defaultSubResource(String(input)) ?? Response.json(baseBook)
           return fail
             ? Response.json({ error: '保存できませんでした' }, { status: 500 })
             : Response.json({ ...baseBook, rating: 5 })
@@ -622,7 +661,7 @@ describe('BookDetailView の読書ログ', () => {
       if (path.endsWith('/prediction')) {
         return Response.json({ available: true, remainingPages: 100, pagesPerDay: 10, estimatedDays: 10 })
       }
-      if (path.includes('/logs')) return Response.json([])
+      if (path.includes('/logs') || path.includes('/quotes')) return Response.json([])
       if (path.startsWith('/api/books/') && method === 'GET') return Response.json(baseBook)
       return Response.json({ error: 'unexpected' }, { status: 500 })
     })
@@ -631,5 +670,47 @@ describe('BookDetailView の読書ログ', () => {
     const { wrapper } = await mountAt('/books/7')
 
     expect(wrapper.find('[aria-label="読書ログ"]').text()).toContain('あと約10日で読み終わりそうです')
+  })
+})
+
+describe('BookDetailView の引用', () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+    vi.unstubAllGlobals()
+  })
+
+  it('引用を追加すると一覧に表示される', async () => {
+    const fetchMock = stubServer()
+    const { wrapper } = await mountAt('/books/7')
+
+    const section = wrapper.find('[aria-label="引用"]')
+    await section.find('textarea').setValue('吾輩は猫である。名前はまだ無い。')
+    await section.find('input[type="number"]').setValue('1')
+    await section.find('form').trigger('submit')
+    await flushPromises()
+
+    expect(callsOf(fetchMock, 'POST').some(([p]) => String(p).endsWith('/quotes'))).toBe(true)
+    expect(section.text()).toContain('吾輩は猫である。名前はまだ無い。')
+    expect(section.text()).toContain('p.1')
+  })
+
+  it('削除すると一覧から消える', async () => {
+    stubServer(baseBook, [], [{ id: 1, book_id: 7, text: '消す引用', page: null }])
+    const { wrapper } = await mountAt('/books/7')
+
+    const section = wrapper.find('[aria-label="引用"]')
+    expect(section.text()).toContain('消す引用')
+
+    await section.find('button.text-red-700').trigger('click')
+    await flushPromises()
+
+    expect(section.text()).not.toContain('消す引用')
+    expect(section.text()).toContain('まだ引用がありません')
+  })
+
+  it('読みたい本・読了した本でも引用のセクションを表示する', async () => {
+    stubServer({ ...baseBook, status: 'want', current_page: null }, [], [{ id: 1, book_id: 7, text: '引用', page: null }])
+    const { wrapper } = await mountAt('/books/7')
+    expect(wrapper.find('[aria-label="引用"]').text()).toContain('引用')
   })
 })

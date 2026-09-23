@@ -126,3 +126,45 @@ export function deleteLog(bookId: number, logId: number): Promise<void> {
 export function getPrediction(bookId: number): Promise<Prediction> {
   return request<Prediction>(`/api/books/${bookId}/prediction`)
 }
+
+export interface Quote {
+  id: number
+  book_id: number
+  text: string
+  page: number | null
+}
+
+export interface QuoteInput {
+  text: string
+  page?: number | null
+}
+
+/** 横断検索の結果。本のタイトルが付く。 */
+export interface QuoteSearchResult extends Quote {
+  book_title: string
+}
+
+/** 対象の本の引用を、新しい順で取得する。 */
+export function listQuotes(bookId: number): Promise<Quote[]> {
+  return request<Quote[]>(`/api/books/${bookId}/quotes`)
+}
+
+export function addQuote(bookId: number, input: QuoteInput): Promise<Quote> {
+  return request<Quote>(`/api/books/${bookId}/quotes`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  })
+}
+
+export function deleteQuote(bookId: number, quoteId: number): Promise<void> {
+  return request<void>(`/api/books/${bookId}/quotes/${quoteId}`, { method: 'DELETE' })
+}
+
+/** 全本の引用をキーワードで横断検索する。空文字は「指定なし」として扱う。 */
+export function searchQuotes(q: string): Promise<QuoteSearchResult[]> {
+  const query = new URLSearchParams()
+  if (q.trim() !== '') query.set('q', q.trim())
+  const qs = query.toString()
+  return request<QuoteSearchResult[]>(qs ? `/api/quotes?${qs}` : '/api/quotes')
+}
