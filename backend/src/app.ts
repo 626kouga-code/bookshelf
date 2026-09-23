@@ -2,6 +2,7 @@ import { Hono } from 'hono'
 import { booksRoutes } from './books.ts'
 import type { Db } from './db.ts'
 import { ApiError } from './errors.ts'
+import { exportRoutes, importRoutes } from './backup.ts'
 import { goalsRoutes } from './goals.ts'
 import { logsRoutes, predictionRoutes } from './logs.ts'
 import { quoteSearchRoutes, quotesRoutes } from './quotes.ts'
@@ -22,6 +23,8 @@ export function createApp(db: Db) {
   app.route('/api/quotes', quoteSearchRoutes(db))
   app.route('/api/stats', statsRoutes(db))
   app.route('/api/goals', goalsRoutes(db))
+  app.route('/api/export', exportRoutes(db))
+  app.route('/api/import', importRoutes(db))
 
   app.onError((err, c) => {
     if (err instanceof ApiError) return c.json({ error: err.message }, err.status)
