@@ -6,6 +6,7 @@ const NAV_ITEMS = [
   { to: '/books/new', label: '本を追加' },
   { to: '/quotes', label: '引用検索' },
   { to: '/stats', label: '統計・目標' },
+  { to: '/settings', label: '設定' },
 ]
 </script>
 
