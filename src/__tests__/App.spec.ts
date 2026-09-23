@@ -46,6 +46,34 @@ describe('App', () => {
     expect(wrapper.find('h2').text()).toBe('引用検索')
   })
 
+  it('ナビゲーションから統計・目標画面へ移動できる', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: unknown) => {
+        const url = new URL(String(input), 'http://localhost')
+        if (url.pathname === '/api/stats') {
+          return Response.json({ monthly_finished: [], genre_counts: [], total_pages_read: 0, current_streak_days: 0 })
+        }
+        if (url.pathname === '/api/goals') {
+          const periodType = url.searchParams.get('period_type')
+          return Response.json({
+            period_type: periodType,
+            period: url.searchParams.get('period') ?? '',
+            target_books: null,
+            target_daily_pages: null,
+          })
+        }
+        return Response.json([])
+      }),
+    )
+    const wrapper = await mountApp('/')
+
+    await wrapper.find('nav a[href="/stats"]').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.find('h2').text()).toBe('統計・目標')
+  })
+
   it('現在のページのナビゲーションだけを強調する', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => Response.json([])))
     const wrapper = await mountApp('/books/new')

@@ -3,6 +3,7 @@ import HomeView from '../views/HomeView.vue'
 import BookNewView from '../views/BookNewView.vue'
 import BookDetailView from '../views/BookDetailView.vue'
 import QuoteSearchView from '../views/QuoteSearchView.vue'
+import StatsView from '../views/StatsView.vue'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -26,6 +27,11 @@ const router = createRouter({
       path: '/quotes',
       name: 'quotes',
       component: QuoteSearchView,
+    },
+    {
+      path: '/stats',
+      name: 'stats',
+      component: StatsView,
     },
   ],
 })
