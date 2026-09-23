@@ -4,6 +4,7 @@ import { RouterLink, RouterView } from 'vue-router'
 const NAV_ITEMS = [
   { to: '/', label: '本棚' },
   { to: '/books/new', label: '本を追加' },
+  { to: '/quotes', label: '引用検索' },
 ]
 </script>
 

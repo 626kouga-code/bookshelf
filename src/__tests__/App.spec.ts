@@ -36,6 +36,16 @@ describe('App', () => {
     expect(wrapper.find('h2').text()).toBe('本を追加')
   })
 
+  it('ナビゲーションから引用検索画面へ移動できる', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => Response.json([])))
+    const wrapper = await mountApp('/')
+
+    await wrapper.find('nav a[href="/quotes"]').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.find('h2').text()).toBe('引用検索')
+  })
+
   it('現在のページのナビゲーションだけを強調する', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => Response.json([])))
     const wrapper = await mountApp('/books/new')
