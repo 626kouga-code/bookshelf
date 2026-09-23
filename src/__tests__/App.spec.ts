@@ -74,6 +74,16 @@ describe('App', () => {
     expect(wrapper.find('h2').text()).toBe('統計・目標')
   })
 
+  it('ナビゲーションから設定画面へ移動できる', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => Response.json([])))
+    const wrapper = await mountApp('/')
+
+    await wrapper.find('nav a[href="/settings"]').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.find('h2').text()).toBe('設定')
+  })
+
   it('現在のページのナビゲーションだけを強調する', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => Response.json([])))
     const wrapper = await mountApp('/books/new')
