@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import { createMemoryHistory, createRouter } from 'vue-router'
-import type { Book } from '@/api/books'
+import type { Book, ReadingLog } from '@/api/books'
 import BookForm from '@/components/BookForm.vue'
 import BookDetailView from '../BookDetailView.vue'
 
@@ -21,14 +21,42 @@ const baseBook: Book = {
   finished_at: null,
 }
 
-/** 本を1冊だけ持つ簡易サーバー。PUT は送られた項目でマージして返す。 */
-function stubServer(initial: Book | null = baseBook) {
+/**
+ * 本を1冊だけ持つ簡易サーバー。PUT は送られた項目でマージして返す。
+ * 読書ログの追加・削除は本物のAPIと同様に current_page と連動する。
+ */
+function stubServer(initial: Book | null = baseBook, initialLogs: ReadingLog[] = []) {
   let stored = initial
+  let logs = [...initialLogs]
+  let nextLogId = Math.max(0, ...logs.map((l) => l.id)) + 1
   const fn = vi.fn<typeof fetch>(async (input, init) => {
     const path = String(input)
     const method = init?.method ?? 'GET'
     if (!path.startsWith('/api/books/')) return Response.json({ error: 'unexpected' }, { status: 500 })
     if (!stored) return Response.json({ error: '本が見つかりません' }, { status: 404 })
+
+    if (path.endsWith('/prediction')) {
+      return Response.json({ available: false, reason: '直近の読書ログがありません' })
+    }
+    if (path.includes('/logs')) {
+      if (method === 'GET') return Response.json(logs)
+      if (method === 'POST') {
+        const body = JSON.parse(String(init?.body)) as { date: string; pages: number }
+        const created: ReadingLog = { id: nextLogId++, book_id: stored.id, date: body.date, pages: body.pages }
+        logs = [created, ...logs]
+        const cap = stored.pages ?? Infinity
+        stored = { ...stored, current_page: Math.min((stored.current_page ?? 0) + body.pages, cap) }
+        return Response.json(created, { status: 201 })
+      }
+      if (method === 'DELETE') {
+        const id = Number(path.split('/').pop())
+        const target = logs.find((l) => l.id === id)
+        logs = logs.filter((l) => l.id !== id)
+        if (target) stored = { ...stored, current_page: Math.max((stored.current_page ?? 0) - target.pages, 0) }
+        return new Response(null, { status: 204 })
+      }
+    }
+
     if (method === 'GET') return Response.json(stored)
     if (method === 'PUT') {
       stored = { ...stored, ...JSON.parse(String(init?.body)) }
@@ -516,5 +544,92 @@ describe('BookDetailView の進捗・評価・感想の更新', () => {
 
       expect((wrapper.find('textarea').element as HTMLTextAreaElement).value).toBe('書きかけの感想')
     })
+  })
+})
+
+describe('BookDetailView の読書ログ', () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+    vi.unstubAllGlobals()
+  })
+
+  const dateInput = (wrapper: Awaited<ReturnType<typeof mountAt>>['wrapper']) => wrapper.find('input[type="date"]')
+  // 読書中は「現在のページ」欄もあるため、読書ログの入力欄はセクション内から探す
+  const pagesInput = (wrapper: Awaited<ReturnType<typeof mountAt>>['wrapper']) =>
+    wrapper.find('[aria-label="読書ログ"] input[type="number"]')
+
+  it('読みたい本には読書ログのセクションを表示しない', async () => {
+    stubServer({ ...baseBook, status: 'want', current_page: null })
+    const { wrapper } = await mountAt('/books/7')
+    expect(wrapper.find('[aria-label="読書ログ"]').exists()).toBe(false)
+  })
+
+  it('読書中の本には記録フォームと履歴を表示する', async () => {
+    stubServer(baseBook, [{ id: 1, book_id: 7, date: '2026-09-20', pages: 30 }])
+    const { wrapper } = await mountAt('/books/7')
+
+    const section = wrapper.find('[aria-label="読書ログ"]')
+    expect(section.exists()).toBe(true)
+    expect(section.text()).toContain('2026-09-20（30ページ）')
+    expect(dateInput(wrapper).exists()).toBe(true)
+  })
+
+  it('記録すると一覧に追加され、現在のページが更新される', async () => {
+    const fetchMock = stubServer()
+    const { wrapper } = await mountAt('/books/7')
+
+    await dateInput(wrapper).setValue('2026-09-21')
+    await pagesInput(wrapper).setValue('30')
+    await wrapper.find('[aria-label="読書ログ"] form').trigger('submit')
+    await flushPromises()
+
+    expect(callsOf(fetchMock, 'POST').some(([p]) => String(p).endsWith('/logs'))).toBe(true)
+    const section = wrapper.find('[aria-label="読書ログ"]')
+    expect(section.text()).toContain('2026-09-21（30ページ）')
+    expect(wrapper.text()).toContain('80 / 200 ページ（40%）')
+  })
+
+  it('削除すると一覧から消え、現在のページが戻る', async () => {
+    stubServer(baseBook, [{ id: 1, book_id: 7, date: '2026-09-20', pages: 30 }])
+    const { wrapper } = await mountAt('/books/7')
+
+    await wrapper.find('[aria-label="読書ログ"] button.text-red-700').trigger('click')
+    await flushPromises()
+
+    const section = wrapper.find('[aria-label="読書ログ"]')
+    expect(section.text()).not.toContain('2026-09-20')
+    expect(section.text()).toContain('まだ記録がありません')
+    expect(wrapper.text()).toContain('20 / 200 ページ（10%）')
+  })
+
+  it('読了した本は履歴だけ表示し、記録フォーム・削除ボタンは出さない', async () => {
+    stubServer({ ...baseBook, status: 'done', finished_at: '2026-03-04T12:00:00.000Z' }, [
+      { id: 1, book_id: 7, date: '2026-09-20', pages: 30 },
+    ])
+    const { wrapper } = await mountAt('/books/7')
+
+    const section = wrapper.find('[aria-label="読書ログ"]')
+    expect(section.exists()).toBe(true)
+    expect(section.text()).toContain('2026-09-20（30ページ）')
+    expect(section.find('form').exists()).toBe(false)
+    expect(section.find('button.text-red-700').exists()).toBe(false)
+  })
+
+  it('直近の読書ログから算出できた読了予測を表示する', async () => {
+    const fetchMock = vi.fn<typeof fetch>(async (input, init) => {
+      const path = String(input)
+      const method = init?.method ?? 'GET'
+      if (path.endsWith('/prediction')) {
+        return Response.json({ available: true, remainingPages: 100, pagesPerDay: 10, estimatedDays: 10 })
+      }
+      if (path.includes('/logs')) return Response.json([])
+      if (path.startsWith('/api/books/') && method === 'GET') return Response.json(baseBook)
+      return Response.json({ error: 'unexpected' }, { status: 500 })
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    const { wrapper } = await mountAt('/books/7')
+
+    expect(wrapper.find('[aria-label="読書ログ"]').text()).toContain('あと約10日で読み終わりそうです')
   })
 })
