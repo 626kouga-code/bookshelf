@@ -2,6 +2,8 @@
 import { ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { exportBackup, importBackup } from '@/api/backup'
+import { listBooks } from '@/api/books'
+import { booksToCsv } from '@/utils/csv'
 import { applyTheme, loadThemeSetting, saveThemeSetting, THEME_OPTIONS } from '@/utils/theme'
 
 const router = useRouter()
@@ -15,6 +17,9 @@ watch(themeSetting, (setting) => {
 const exporting = ref(false)
 const exportError = ref<string | null>(null)
 
+const csvExporting = ref(false)
+const csvExportError = ref<string | null>(null)
+
 const importing = ref(false)
 const importError = ref<string | null>(null)
 const fileInput = ref<HTMLInputElement | null>(null)
@@ -25,23 +30,45 @@ function todayForFilename(): string {
   return `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}`
 }
 
+/** ブラウザにファイルとしてダウンロードさせる。 */
+function download(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  a.click()
+  URL.revokeObjectURL(url)
+}
+
 async function onExport() {
   if (exporting.value) return
   exporting.value = true
   exportError.value = null
   try {
     const data = await exportBackup()
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `reading-app-backup-${todayForFilename()}.json`
-    a.click()
-    URL.revokeObjectURL(url)
+    download(
+      new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }),
+      `reading-app-backup-${todayForFilename()}.json`,
+    )
   } catch (e) {
     exportError.value = e instanceof Error ? e.message : 'エクスポートに失敗しました'
   } finally {
     exporting.value = false
+  }
+}
+
+/** 本の一覧を、登録の古い順にCSVで書き出す。 */
+async function onExportCsv() {
+  if (csvExporting.value) return
+  csvExporting.value = true
+  csvExportError.value = null
+  try {
+    const books = await listBooks({ sort: 'added_at', order: 'asc' })
+    download(new Blob([booksToCsv(books)], { type: 'text/csv' }), `reading-app-books-${todayForFilename()}.csv`)
+  } catch (e) {
+    csvExportError.value = e instanceof Error ? e.message : 'CSVエクスポートに失敗しました'
+  } finally {
+    csvExporting.value = false
   }
 }
 
@@ -115,6 +142,24 @@ async function onImportFileChange(event: Event) {
       </button>
       <p v-if="exportError" role="alert" class="mt-2 rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700">
         {{ exportError }}
+      </p>
+    </section>
+
+    <section aria-label="CSVエクスポート" class="mt-8">
+      <h3 class="text-sm font-semibold">CSVエクスポート（本の一覧）</h3>
+      <p class="mt-1 text-sm text-stone-600">
+        本の一覧をCSVファイルとして書き出します。Excelやスプレッドシートで開けます（復元には使えません）。
+      </p>
+      <button
+        type="button"
+        :disabled="csvExporting"
+        class="mt-2 rounded border border-stone-300 bg-surface px-4 py-2 text-sm hover:bg-stone-50 disabled:opacity-50"
+        @click="onExportCsv"
+      >
+        {{ csvExporting ? '書き出し中…' : 'CSVエクスポート' }}
+      </button>
+      <p v-if="csvExportError" role="alert" class="mt-2 rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+        {{ csvExportError }}
       </p>
     </section>
 
