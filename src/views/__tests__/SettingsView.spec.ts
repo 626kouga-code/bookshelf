@@ -72,6 +72,35 @@ describe('SettingsView', () => {
     })
   })
 
+  describe('CSVエクスポート', () => {
+    it('本の一覧を登録の古い順に取得し、CSVをダウンロードする', async () => {
+      const fetchMock = stubFetch(() => Response.json([]))
+      const { wrapper } = await mountView()
+
+      await wrapper.find('[aria-label="CSVエクスポート"] button').trigger('click')
+      await flushPromises()
+
+      const url = new URL(String(fetchMock.mock.lastCall![0]), 'http://localhost')
+      expect(url.pathname).toBe('/api/books')
+      expect(Object.fromEntries(url.searchParams)).toEqual({ sort: 'added_at', order: 'asc' })
+      const blob = createObjectURL.mock.calls[0]![0] as Blob
+      expect(blob.type).toBe('text/csv')
+      expect(await blob.text()).toContain('タイトル,著者')
+      expect(clickSpy).toHaveBeenCalledTimes(1)
+      expect(revokeObjectURL).toHaveBeenCalledWith('blob:mock-url')
+    })
+
+    it('失敗したらエラーを表示する', async () => {
+      stubFetch(() => Response.json({ error: 'サーバーエラー' }, { status: 500 }))
+      const { wrapper } = await mountView()
+
+      await wrapper.find('[aria-label="CSVエクスポート"] button').trigger('click')
+      await flushPromises()
+
+      expect(wrapper.find('[aria-label="CSVエクスポート"] [role="alert"]').text()).toContain('サーバーエラー')
+    })
+  })
+
   describe('インポート', () => {
     const selectFile = async (wrapper: Awaited<ReturnType<typeof mountView>>['wrapper'], content: string) => {
       const input = wrapper.find('input[type="file"]')
