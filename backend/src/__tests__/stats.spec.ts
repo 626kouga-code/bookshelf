@@ -78,6 +78,36 @@ describe('stats API', () => {
     expect((await res.json()).total_pages_read).toBe(50)
   })
 
+  describe('日別ページ数（ヒートマップ）', () => {
+    it('同じ日のログは本をまたいで合計し、日付順に返す', async () => {
+      const a = await createBook({ title: 'a' })
+      const b = await createBook({ title: 'b' })
+      await send('POST', `/api/books/${a.id}/logs`, { date: dateOffset(0), pages: 10 })
+      await send('POST', `/api/books/${b.id}/logs`, { date: dateOffset(0), pages: 5 })
+      await send('POST', `/api/books/${a.id}/logs`, { date: dateOffset(3), pages: 20 })
+
+      const res = await send('GET', '/api/stats')
+      expect((await res.json()).daily_pages).toEqual([
+        { date: dateOffset(3), pages: 20 },
+        { date: dateOffset(0), pages: 15 },
+      ])
+    })
+
+    it('直近53週より前のログは含めない', async () => {
+      const book = await createBook()
+      await send('POST', `/api/books/${book.id}/logs`, { date: dateOffset(53 * 7 - 1), pages: 10 })
+      await send('POST', `/api/books/${book.id}/logs`, { date: dateOffset(53 * 7), pages: 10 })
+
+      const res = await send('GET', '/api/stats')
+      expect((await res.json()).daily_pages).toEqual([{ date: dateOffset(53 * 7 - 1), pages: 10 }])
+    })
+
+    it('ログがなければ空配列', async () => {
+      const res = await send('GET', '/api/stats')
+      expect((await res.json()).daily_pages).toEqual([])
+    })
+  })
+
   describe('連続読書日数', () => {
     it('今日から連続している日数を数える', async () => {
       const book = await createBook()

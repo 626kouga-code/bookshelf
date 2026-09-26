@@ -37,6 +37,23 @@ function totalPagesRead(db: Db): number {
   return row.total
 }
 
+/** ヒートマップ用に返す期間（日数）。53週分あれば、週の途中から始まるカレンダーも埋まる。 */
+const HEATMAP_DAYS = 53 * 7
+
+/** 直近53週の日別の読書ページ数（ヒートマップ用）。記録がある日だけを日付順に返す。 */
+function dailyPages(db: Db): { date: string; pages: number }[] {
+  const since = new Date()
+  since.setUTCHours(0, 0, 0, 0)
+  since.setUTCDate(since.getUTCDate() - (HEATMAP_DAYS - 1))
+  return db
+    .prepare(
+      `SELECT date, COALESCE(SUM(pages), 0) AS pages
+         FROM reading_logs WHERE date >= ?
+         GROUP BY date ORDER BY date`,
+    )
+    .all(since.toISOString().slice(0, 10)) as { date: string; pages: number }[]
+}
+
 /** 直近の読書ログの日から遡って連続して記録がある日数。今日・昨日に記録がなければ0。 */
 function currentStreakDays(db: Db): number {
   const rows = db.prepare('SELECT DISTINCT date FROM reading_logs ORDER BY date DESC').all() as {
@@ -72,6 +89,7 @@ export function statsRoutes(db: Db) {
       genre_counts: genreCounts(db),
       total_pages_read: totalPagesRead(db),
       current_streak_days: currentStreakDays(db),
+      daily_pages: dailyPages(db),
     }),
   )
 

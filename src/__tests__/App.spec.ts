@@ -52,7 +52,7 @@ describe('App', () => {
       vi.fn(async (input: unknown) => {
         const url = new URL(String(input), 'http://localhost')
         if (url.pathname === '/api/stats') {
-          return Response.json({ monthly_finished: [], genre_counts: [], total_pages_read: 0, current_streak_days: 0 })
+          return Response.json({ monthly_finished: [], genre_counts: [], total_pages_read: 0, current_streak_days: 0, daily_pages: [] })
         }
         if (url.pathname === '/api/goals') {
           const periodType = url.searchParams.get('period_type')

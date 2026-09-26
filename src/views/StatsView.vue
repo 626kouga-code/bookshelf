@@ -2,6 +2,7 @@
 import { computed, onMounted, ref } from 'vue'
 import BarChart from '@/components/BarChart.vue'
 import GoalForm from '@/components/GoalForm.vue'
+import ReadingHeatmap from '@/components/ReadingHeatmap.vue'
 import { getGoal, getStats, updateGoal, type Goal, type Stats } from '@/api/stats'
 
 const now = new Date()
@@ -104,6 +105,11 @@ async function onSaveMonthGoal(input: { target_books: number | null; target_dail
     </div>
 
     <template v-else-if="stats">
+      <section aria-label="読書ヒートマップ" class="mt-6">
+        <h3 class="mb-2 text-sm font-semibold">読書ヒートマップ</h3>
+        <ReadingHeatmap :days="stats.daily_pages" />
+      </section>
+
       <section aria-label="月別読了数" class="mt-6">
         <h3 class="mb-2 text-sm font-semibold">月別読了数（直近12ヶ月）</h3>
         <BarChart :items="monthlyChartItems" unit="冊" />
