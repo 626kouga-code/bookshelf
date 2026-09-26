@@ -20,6 +20,10 @@ function makeBook(id: number, title: string, extra: Partial<Book> = {}): Book {
     review: null,
     added_at: '2026-01-01T00:00:00.000Z',
     finished_at: null,
+    favorite: false,
+    tags: [],
+    series: null,
+    volume: null,
     ...extra,
   }
 }
@@ -145,5 +149,56 @@ describe('HomeView', () => {
 
     expect(wrapper.text()).toContain('条件に合う本はありません')
     expect(wrapper.text()).not.toContain('本棚はまだ空です')
+  })
+
+  describe('タグ・シリーズ・お気に入り', () => {
+    it('「お気に入り」ボタンで、お気に入りだけに絞り込む／戻す', async () => {
+      const fetchMock = stubFetch(() => Response.json([]))
+      const wrapper = await mountView()
+      const button = wrapper.findAll('button').find((b) => b.text().includes('お気に入り'))!
+      expect(button.attributes('aria-pressed')).toBe('false')
+
+      await button.trigger('click')
+      await flushPromises()
+      expect(lastQuery(fetchMock).favorite).toBe('true')
+      expect(button.attributes('aria-pressed')).toBe('true')
+
+      await button.trigger('click')
+      await flushPromises()
+      expect(lastQuery(fetchMock).favorite).toBeUndefined()
+    })
+
+    it('カードのタグを押すと、そのタグで絞り込み、解除ボタンで戻せる', async () => {
+      const fetchMock = stubFetch(() => Response.json([makeBook(1, '本', { tags: ['漫画'] })]))
+      const wrapper = await mountView()
+
+      await wrapper.findAll('button').find((b) => b.text() === '#漫画')!.trigger('click')
+      await flushPromises()
+      expect(lastQuery(fetchMock).tag).toBe('漫画')
+      expect(wrapper.find('[aria-label="絞り込み中の条件"]').text()).toContain('タグ: #漫画')
+
+      await wrapper.find('button[aria-label="タグ「漫画」の絞り込みを解除"]').trigger('click')
+      await flushPromises()
+      expect(lastQuery(fetchMock).tag).toBeUndefined()
+      expect(wrapper.find('[aria-label="絞り込み中の条件"]').exists()).toBe(false)
+    })
+
+    it('カードのシリーズを押すと、そのシリーズで絞り込み、シリーズ順（巻数順）に並べる', async () => {
+      const fetchMock = stubFetch(() => Response.json([makeBook(1, '本', { series: 'ONE PIECE', volume: 2 })]))
+      const wrapper = await mountView()
+
+      await wrapper.findAll('button').find((b) => b.text() === 'ONE PIECE 2巻')!.trigger('click')
+      await flushPromises()
+      expect(lastQuery(fetchMock)).toMatchObject({ series: 'ONE PIECE', sort: 'series', order: 'asc' })
+      expect(wrapper.find('[aria-label="絞り込み中の条件"]').text()).toContain('シリーズ: ONE PIECE')
+    })
+
+    it('並べ替えで「シリーズ順」を選べる', async () => {
+      const fetchMock = stubFetch(() => Response.json([]))
+      const wrapper = await mountView()
+      await wrapper.find('select[aria-label="並べ替え"]').setValue('series:asc')
+      await flushPromises()
+      expect(lastQuery(fetchMock)).toMatchObject({ sort: 'series', order: 'asc' })
+    })
   })
 })

@@ -18,6 +18,10 @@ const base: Book = {
   review: null,
   added_at: '2026-01-01T00:00:00.000Z',
   finished_at: null,
+  favorite: false,
+  tags: [],
+  series: null,
+  volume: null,
 }
 
 const router = createRouter({
@@ -62,6 +66,30 @@ describe('BookCard', () => {
   it('読みたい以外の本には積読日数を表示しない', () => {
     expect(render({ status: 'reading' }).text()).not.toContain('積読')
     expect(render({ status: 'done' }).text()).not.toContain('積読')
+  })
+
+  it('お気に入りの本はタイトルの前に★を表示する', () => {
+    expect(render({ favorite: true }).find('[aria-label="お気に入り"]').exists()).toBe(true)
+    expect(render({ favorite: false }).find('[aria-label="お気に入り"]').exists()).toBe(false)
+  })
+
+  it('シリーズを「シリーズ名 N巻」で表示し、押すとそのシリーズで絞り込むよう通知する', async () => {
+    const wrapper = render({ series: 'ONE PIECE', volume: 3 })
+    const button = wrapper.findAll('button').find((b) => b.text() === 'ONE PIECE 3巻')!
+    await button.trigger('click')
+    expect(wrapper.emitted('filter-series')).toEqual([['ONE PIECE']])
+  })
+
+  it('タグを表示し、押すとそのタグで絞り込むよう通知する', async () => {
+    const wrapper = render({ tags: ['漫画', '冒険'] })
+    const buttons = wrapper.findAll('button').filter((b) => b.text().startsWith('#'))
+    expect(buttons.map((b) => b.text())).toEqual(['#漫画', '#冒険'])
+    await buttons[1]!.trigger('click')
+    expect(wrapper.emitted('filter-tag')).toEqual([['冒険']])
+  })
+
+  it('シリーズ・タグがなければ表示しない', () => {
+    expect(render().findAll('button')).toHaveLength(0)
   })
 
   it('評価があれば星で表示し、未評価なら表示しない', () => {

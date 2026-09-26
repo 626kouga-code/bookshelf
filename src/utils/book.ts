@@ -25,6 +25,21 @@ export function progressOf(book: Pick<Book, 'pages' | 'current_page'>) {
   return { current, pages, percent: Math.min(100, Math.round((current / pages) * 100)) }
 }
 
+/** シリーズの表示（例: ONE PIECE 3巻）。シリーズ未設定なら null。 */
+export function seriesLabel(book: Pick<Book, 'series' | 'volume'>): string | null {
+  if (!book.series) return null
+  return book.volume === null ? book.series : `${book.series} ${book.volume}巻`
+}
+
+/** カンマ・読点で区切った入力を、前後の空白を除いた重複なしの配列にする（著者・タグの入力欄用）。 */
+export function splitList(text: string): string[] {
+  const values = text
+    .split(/[,、，]/)
+    .map((v) => v.trim())
+    .filter((v) => v !== '')
+  return [...new Set(values)]
+}
+
 /**
  * 登録日から今日までの経過日数（ブラウザのタイムゾーンでの日付の差）。当日登録は0。
  * 不正な値や未来の日時なら null。

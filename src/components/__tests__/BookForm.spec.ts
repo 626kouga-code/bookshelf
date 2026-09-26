@@ -43,6 +43,32 @@ describe('BookForm', () => {
     })
   })
 
+  it('シリーズ・巻数・タグを入力すると、その値も渡す（タグは区切って重複をまとめる）', async () => {
+    const wrapper = mountForm()
+    await fieldByLabel(wrapper, 'タイトル').setValue('ONE PIECE 1')
+    await fieldByLabel(wrapper, 'シリーズ').setValue(' ONE PIECE ')
+    await fieldByLabel(wrapper, '巻数').setValue('1')
+    await fieldByLabel(wrapper, 'タグ').setValue('漫画、冒険, 漫画')
+    await wrapper.find('form').trigger('submit')
+
+    expect(submitted(wrapper)![0]![0]).toEqual({
+      title: 'ONE PIECE 1',
+      status: 'want',
+      series: 'ONE PIECE',
+      volume: 1,
+      tags: ['漫画', '冒険'],
+    })
+  })
+
+  it.each([['0'], ['1.5']])('巻数が %s なら送信しない', async (volume) => {
+    const wrapper = mountForm()
+    await fieldByLabel(wrapper, 'タイトル').setValue('a')
+    await fieldByLabel(wrapper, '巻数').setValue(volume)
+    await wrapper.find('form').trigger('submit')
+    expect(submitted(wrapper)).toBeUndefined()
+    expect(wrapper.find('[role="alert"]').text()).toContain('巻数')
+  })
+
   it('タイトルが空白なら送信せずエラーを表示する', async () => {
     const wrapper = mountForm()
     await fieldByLabel(wrapper, 'タイトル').setValue('   ')
@@ -164,6 +190,9 @@ describe('BookForm の編集（initial / clearEmpty）', () => {
     genre: '小説',
     status: 'reading' as const,
     current_page: 50,
+    tags: ['名作', '猫'],
+    series: '漱石全集',
+    volume: 1,
   }
 
   const value = (wrapper: ReturnType<typeof mountForm>, label: string) =>
@@ -181,6 +210,13 @@ describe('BookForm の編集（initial / clearEmpty）', () => {
     expect(value(wrapper, '現在のページ')).toBe('50')
   })
 
+  it('編集では、シリーズ・巻数・タグの現在の値が入力されている', () => {
+    const wrapper = mountForm({ initial: book })
+    expect(value(wrapper, 'シリーズ')).toBe('漱石全集')
+    expect(value(wrapper, '巻数')).toBe('1')
+    expect(value(wrapper, 'タグ')).toBe('名作、猫')
+  })
+
   it('変更しないで送ると、元の内容がそのまま送られる', async () => {
     const wrapper = mountForm({ initial: book, clearEmpty: true })
     await wrapper.find('form').trigger('submit')
@@ -191,6 +227,9 @@ describe('BookForm の編集（initial / clearEmpty）', () => {
       pages: 200,
       cover: 'https://example.com/c.jpg',
       genre: '小説',
+      series: '漱石全集',
+      volume: 1,
+      tags: ['名作', '猫'],
       status: 'reading',
       current_page: 50,
     })
@@ -204,6 +243,9 @@ describe('BookForm の編集（initial / clearEmpty）', () => {
     await fieldByLabel(wrapper, 'ジャンル').setValue('')
     await fieldByLabel(wrapper, '表紙画像のURL').setValue('')
     await fieldByLabel(wrapper, '現在のページ').setValue('')
+    await fieldByLabel(wrapper, 'シリーズ').setValue('')
+    await fieldByLabel(wrapper, '巻数').setValue('')
+    await fieldByLabel(wrapper, 'タグ').setValue('')
     await wrapper.find('form').trigger('submit')
     expect(submitted(wrapper)![0]![0]).toEqual({
       title: '吾輩は猫である',
@@ -212,6 +254,9 @@ describe('BookForm の編集（initial / clearEmpty）', () => {
       pages: null,
       cover: null,
       genre: null,
+      series: null,
+      volume: null,
+      tags: null,
       status: 'reading',
       current_page: null,
     })

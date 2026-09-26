@@ -21,6 +21,7 @@ const SORTS: { value: `${BookSort}:${SortOrder}`; label: string }[] = [
   { value: 'title:asc', label: 'タイトル順' },
   { value: 'rating:desc', label: '評価が高い順' },
   { value: 'finished_at:desc', label: '読了日が新しい順' },
+  { value: 'series:asc', label: 'シリーズ順' },
 ]
 
 const store = useBooksStore()
@@ -45,6 +46,12 @@ watch(keyword, (value) => {
     filters.value.q = value
   }, SEARCH_DEBOUNCE_MS)
 })
+
+/** シリーズで絞り込むときは、巻数順に読めるようシリーズ順に並べ替える */
+function filterBySeries(series: string) {
+  filters.value.series = series
+  sortValue.value = 'series:asc'
+}
 
 // 絞り込み・並べ替えが変わるたびに取得し直す
 watch(() => ({ ...filters.value }), () => store.fetchBooks())
@@ -89,6 +96,44 @@ onBeforeUnmount(() => clearTimeout(debounceTimer))
       >
         <option v-for="s in SORTS" :key="s.value" :value="s.value">{{ s.label }}</option>
       </select>
+      <button
+        type="button"
+        :aria-pressed="filters.favoriteOnly"
+        class="shrink-0 rounded border px-3 py-2 text-sm"
+        :class="
+          filters.favoriteOnly
+            ? 'border-amber-400 bg-amber-50 text-amber-700'
+            : 'border-stone-300 bg-white text-stone-600 hover:bg-stone-50'
+        "
+        @click="filters.favoriteOnly = !filters.favoriteOnly"
+      >
+        {{ filters.favoriteOnly ? '★' : '☆' }} お気に入り
+      </button>
+    </div>
+
+    <div v-if="filters.tag || filters.series" class="mt-3 flex flex-wrap gap-2 text-sm" aria-label="絞り込み中の条件">
+      <span v-if="filters.series" class="flex items-center gap-1 rounded-full bg-stone-200 py-0.5 pl-3 pr-1">
+        シリーズ: {{ filters.series }}
+        <button
+          type="button"
+          class="rounded-full px-1.5 text-stone-500 hover:bg-stone-300 hover:text-stone-900"
+          :aria-label="`シリーズ「${filters.series}」の絞り込みを解除`"
+          @click="filters.series = ''"
+        >
+          ×
+        </button>
+      </span>
+      <span v-if="filters.tag" class="flex items-center gap-1 rounded-full bg-stone-200 py-0.5 pl-3 pr-1">
+        タグ: #{{ filters.tag }}
+        <button
+          type="button"
+          class="rounded-full px-1.5 text-stone-500 hover:bg-stone-300 hover:text-stone-900"
+          :aria-label="`タグ「${filters.tag}」の絞り込みを解除`"
+          @click="filters.tag = ''"
+        >
+          ×
+        </button>
+      </span>
     </div>
 
     <p v-if="error" role="alert" class="mt-4 rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700">
@@ -108,7 +153,7 @@ onBeforeUnmount(() => clearTimeout(debounceTimer))
 
     <ul v-else class="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2" :class="{ 'opacity-60': loading }">
       <li v-for="book in books" :key="book.id">
-        <BookCard :book="book" />
+        <BookCard :book="book" @filter-tag="filters.tag = $event" @filter-series="filterBySeries" />
       </li>
     </ul>
   </section>

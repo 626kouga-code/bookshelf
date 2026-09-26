@@ -1,7 +1,7 @@
 import { request } from './client'
 
 export type BookStatus = 'want' | 'reading' | 'done'
-export type BookSort = 'added_at' | 'title' | 'rating' | 'finished_at'
+export type BookSort = 'added_at' | 'title' | 'rating' | 'finished_at' | 'series'
 export type SortOrder = 'asc' | 'desc'
 
 export interface Book {
@@ -18,6 +18,10 @@ export interface Book {
   review: string | null
   added_at: string
   finished_at: string | null
+  favorite: boolean
+  tags: string[]
+  series: string | null
+  volume: number | null
 }
 
 /**
@@ -35,6 +39,10 @@ export interface BookInput {
   current_page?: number | null
   rating?: number
   review?: string | null
+  favorite?: boolean
+  tags?: string[] | null
+  series?: string | null
+  volume?: number | null
 }
 
 export interface BookListParams {
@@ -42,6 +50,9 @@ export interface BookListParams {
   genre?: string
   rating?: number
   author?: string
+  tag?: string
+  series?: string
+  favorite?: boolean
   q?: string
   sort?: BookSort
   order?: SortOrder
