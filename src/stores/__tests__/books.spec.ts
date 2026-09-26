@@ -23,6 +23,10 @@ function makeBook(id: number, title: string): Book {
     review: null,
     added_at: '2026-01-01T00:00:00.000Z',
     finished_at: null,
+    favorite: false,
+    tags: [],
+    series: null,
+    volume: null,
   }
 }
 
@@ -56,6 +60,36 @@ describe('books store', () => {
     store.filters.order = 'asc'
     await store.fetchBooks()
     expect(listBooksMock).toHaveBeenCalledWith({ status: 'done', q: '猫', sort: 'title', order: 'asc' })
+  })
+
+  it('タグ・シリーズ・お気に入りの絞り込みをAPIに渡す', async () => {
+    listBooksMock.mockResolvedValue([])
+    const store = useBooksStore()
+    store.filters.tag = '漫画'
+    store.filters.series = 'ONE PIECE'
+    store.filters.favoriteOnly = true
+    await store.fetchBooks()
+    expect(listBooksMock).toHaveBeenCalledWith(
+      expect.objectContaining({ tag: '漫画', series: 'ONE PIECE', favorite: true }),
+    )
+  })
+
+  it('お気に入りだけに絞らないときは favorite を送らない', async () => {
+    listBooksMock.mockResolvedValue([])
+    await useBooksStore().fetchBooks()
+    expect(listBooksMock.mock.lastCall![0]!.favorite).toBeUndefined()
+  })
+
+  it('isFiltered はタグ・シリーズ・お気に入りの絞り込みでも true', () => {
+    const store = useBooksStore()
+    store.filters.tag = '漫画'
+    expect(store.isFiltered).toBe(true)
+    store.filters.tag = ''
+    store.filters.series = 'S'
+    expect(store.isFiltered).toBe(true)
+    store.filters.series = ''
+    store.filters.favoriteOnly = true
+    expect(store.isFiltered).toBe(true)
   })
 
   it('失敗したらエラーメッセージを保持し、成功すると消える', async () => {

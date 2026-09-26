@@ -27,7 +27,8 @@ import {
   type ReadingLogInput,
 } from '@/api/books'
 import { ApiRequestError } from '@/api/client'
-import { formatDate, progressOf, STATUS_CLASSES, STATUS_LABELS } from '@/utils/book'
+import { useBooksStore, type BookFilters } from '@/stores/books'
+import { formatDate, progressOf, seriesLabel, STATUS_CLASSES, STATUS_LABELS } from '@/utils/book'
 
 const route = useRoute()
 const router = useRouter()
@@ -51,6 +52,25 @@ const bookId = computed(() => {
 })
 
 const progress = computed(() => (book.value ? progressOf(book.value) : null))
+const series = computed(() => (book.value ? seriesLabel(book.value) : null))
+
+const booksStore = useBooksStore()
+
+/** タグ・シリーズの本を本棚で見る。状態・キーワードの絞り込みは外して、該当する本がすべて見えるようにする。 */
+function showOnShelf(apply: (filters: BookFilters) => void) {
+  const filters = booksStore.filters
+  filters.status = ''
+  filters.q = ''
+  apply(filters)
+  router.push('/')
+}
+const showTag = (tag: string) => showOnShelf((f) => (f.tag = tag))
+const showSeries = (name: string) =>
+  showOnShelf((f) => {
+    f.series = name
+    f.sort = 'series'
+    f.order = 'asc'
+  })
 
 const logs = ref<ReadingLog[]>([])
 const prediction = ref<Prediction | null>(null)
@@ -290,8 +310,40 @@ async function onDelete() {
           </div>
 
           <div class="min-w-0 flex-1">
-            <h2 class="break-words text-xl font-bold">{{ book.title }}</h2>
+            <div class="flex items-start gap-2">
+              <h2 class="min-w-0 flex-1 break-words text-xl font-bold">{{ book.title }}</h2>
+              <button
+                type="button"
+                :aria-pressed="book.favorite"
+                :aria-label="book.favorite ? 'お気に入りから外す' : 'お気に入りに追加'"
+                :title="book.favorite ? 'お気に入りから外す' : 'お気に入りに追加'"
+                :disabled="updating || deleting"
+                class="shrink-0 text-2xl leading-none disabled:opacity-50"
+                :class="book.favorite ? 'text-amber-500' : 'text-stone-300 hover:text-amber-400'"
+                @click="patchBook({ favorite: !book.favorite })"
+              >
+                {{ book.favorite ? '★' : '☆' }}
+              </button>
+            </div>
             <p v-if="book.authors.length" class="mt-1 text-stone-600">{{ book.authors.join('、') }}</p>
+            <p v-if="series" class="mt-1 text-sm text-stone-600">
+              シリーズ:
+              <button type="button" class="underline hover:text-stone-900" @click="showSeries(book.series!)">
+                {{ series }}
+              </button>
+            </p>
+            <div v-if="book.tags.length" class="mt-2 flex flex-wrap gap-1 text-xs">
+              <button
+                v-for="tag in book.tags"
+                :key="tag"
+                type="button"
+                class="rounded bg-stone-100 px-1.5 py-0.5 text-stone-600 hover:bg-stone-200"
+                :title="`タグ「${tag}」の本を本棚で見る`"
+                @click="showTag(tag)"
+              >
+                #{{ tag }}
+              </button>
+            </div>
 
             <div class="mt-3 flex flex-wrap items-center gap-2 text-sm">
               <span class="rounded-full px-2 py-0.5 text-xs" :class="STATUS_CLASSES[book.status]">

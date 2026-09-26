@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, reactive, ref, watch } from 'vue'
 import type { Book, BookInput, BookStatus } from '@/api/books'
-import { STATUS_OPTIONS } from '@/utils/book'
+import { splitList, STATUS_OPTIONS } from '@/utils/book'
 
 const props = defineProps<{
   submitting?: boolean
@@ -11,7 +11,10 @@ const props = defineProps<{
   /** 書誌情報の自動入力。渡し直すたびに、書誌に関する項目を置き換える（状態・現在のページは変えない） */
   prefill?: Pick<BookInput, 'title' | 'authors' | 'isbn' | 'pages' | 'genre' | 'cover'> | null
   /** 編集する本。最初の入力値になる（作成時は渡さない） */
-  initial?: Pick<Book, 'title' | 'authors' | 'isbn' | 'pages' | 'cover' | 'genre' | 'status' | 'current_page'>
+  initial?: Pick<
+    Book,
+    'title' | 'authors' | 'isbn' | 'pages' | 'cover' | 'genre' | 'status' | 'current_page' | 'tags' | 'series' | 'volume'
+  >
   /** 空にした項目を null として送る（編集で値を消すため）。作成では空の項目を送らない */
   clearEmpty?: boolean
   /** 指定するとキャンセルボタンを表示する */
@@ -30,6 +33,9 @@ const form = reactive({
   genre: props.initial?.genre ?? '',
   status: (props.initial?.status ?? 'want') as BookStatus,
   currentPage: (props.initial?.current_page ?? '') as number | '',
+  series: props.initial?.series ?? '',
+  volume: (props.initial?.volume ?? '') as number | '',
+  tags: (props.initial?.tags ?? []).join('、'),
 })
 
 const validationError = ref<string | null>(null)
@@ -51,12 +57,8 @@ watch(
 
 const isPositiveInt = (v: number | '', min: number) => v === '' || (Number.isInteger(v) && v >= min)
 
-const authorList = computed(() =>
-  form.authors
-    .split(/[,、，]/)
-    .map((a) => a.trim())
-    .filter((a) => a !== ''),
-)
+const authorList = computed(() => splitList(form.authors))
+const tagList = computed(() => splitList(form.tags))
 
 function onSubmit() {
   if (form.title.trim() === '') {
@@ -65,6 +67,10 @@ function onSubmit() {
   }
   if (!isPositiveInt(form.pages, 1)) {
     validationError.value = '総ページ数は1以上の整数で入力してください'
+    return
+  }
+  if (!isPositiveInt(form.volume, 1)) {
+    validationError.value = '巻数は1以上の整数で入力してください'
     return
   }
   if (form.status === 'reading' && !isPositiveInt(form.currentPage, 0)) {
@@ -82,6 +88,9 @@ function onSubmit() {
   input.pages = form.pages === '' ? empty : form.pages
   input.cover = text(form.cover)
   input.genre = text(form.genre)
+  input.series = text(form.series)
+  input.volume = form.volume === '' ? empty : form.volume
+  input.tags = tagList.value.length ? tagList.value : empty
   // 現在のページは読書中のときだけ扱う（他の状態では変更しない）
   if (form.status === 'reading') input.current_page = form.currentPage === '' ? empty : form.currentPage
   emit('submit', pruneUndefined(input))
@@ -141,6 +150,22 @@ const inputClass = 'mt-1 w-full rounded border border-stone-300 bg-white px-3 py
         <input v-model="form.genre" type="text" :class="inputClass" />
       </label>
     </div>
+
+    <div class="grid gap-4 sm:grid-cols-[1fr_8rem]">
+      <label class="block text-sm font-medium">
+        シリーズ
+        <input v-model="form.series" type="text" placeholder="例: ONE PIECE" :class="inputClass" />
+      </label>
+      <label class="block text-sm font-medium">
+        巻数
+        <input v-model.number="form.volume" type="number" min="1" step="1" :class="inputClass" />
+      </label>
+    </div>
+
+    <label class="block text-sm font-medium">
+      タグ
+      <input v-model="form.tags" type="text" placeholder="複数の場合は「、」か「,」で区切る" :class="inputClass" />
+    </label>
 
     <label class="block text-sm font-medium">
       表紙画像のURL

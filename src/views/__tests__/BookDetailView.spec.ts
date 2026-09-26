@@ -1,8 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
+import { createPinia, setActivePinia } from 'pinia'
 import { createMemoryHistory, createRouter } from 'vue-router'
 import type { Book, Quote, ReadingLog } from '@/api/books'
 import BookForm from '@/components/BookForm.vue'
+import { useBooksStore } from '@/stores/books'
 import BookDetailView from '../BookDetailView.vue'
 
 const baseBook: Book = {
@@ -19,6 +21,10 @@ const baseBook: Book = {
   review: '面白かった\n二行目',
   added_at: '2026-01-02T12:00:00.000Z',
   finished_at: null,
+  favorite: false,
+  tags: [],
+  series: null,
+  volume: null,
 }
 
 /**
@@ -79,7 +85,11 @@ function stubServer(
 
     if (method === 'GET') return Response.json(stored)
     if (method === 'PUT') {
-      stored = { ...stored, ...JSON.parse(String(init?.body)) }
+      const body = JSON.parse(String(init?.body)) as Partial<Book>
+      // 実際のAPIと同じく、null で消した配列の項目は空配列で返す
+      stored = { ...stored, ...body, authors: body.authors ?? stored.authors, tags: body.tags ?? stored.tags }
+      if (body.authors === null) stored.authors = []
+      if (body.tags === null) stored.tags = []
       return Response.json(stored)
     }
     if (method === 'DELETE') {
@@ -115,7 +125,9 @@ async function mountAt(path: string) {
   })
   await router.push(path)
   await router.isReady()
-  const wrapper = mount(BookDetailView, { global: { plugins: [router] } })
+  const pinia = createPinia()
+  setActivePinia(pinia)
+  const wrapper = mount(BookDetailView, { global: { plugins: [router, pinia] } })
   await flushPromises()
   return { wrapper, router }
 }
@@ -713,4 +725,56 @@ describe('BookDetailView の引用', () => {
     const { wrapper } = await mountAt('/books/7')
     expect(wrapper.find('[aria-label="引用"]').text()).toContain('引用')
   })
+
+describe('BookDetailView（タグ・シリーズ・お気に入り）', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('☆を押すとお気に入りに追加し、もう一度押すと外す', async () => {
+    const fetchMock = stubServer({ ...baseBook, favorite: false })
+    const { wrapper } = await mountAt('/books/7')
+
+    await wrapper.find('button[aria-label="お気に入りに追加"]').trigger('click')
+    await flushPromises()
+    expect(JSON.parse(String(callsOf(fetchMock, 'PUT')[0]![1]?.body))).toEqual({ favorite: true })
+    const star = wrapper.find('button[aria-label="お気に入りから外す"]')
+    expect(star.attributes('aria-pressed')).toBe('true')
+
+    await star.trigger('click')
+    await flushPromises()
+    expect(JSON.parse(String(callsOf(fetchMock, 'PUT')[1]![1]?.body))).toEqual({ favorite: false })
+  })
+
+  it('シリーズとタグを表示する', async () => {
+    stubServer({ ...baseBook, series: '漱石全集', volume: 2, tags: ['名作', '猫'] })
+    const { wrapper } = await mountAt('/books/7')
+    expect(wrapper.text()).toContain('シリーズ: 漱石全集 2巻')
+    expect(wrapper.text()).toContain('#名作')
+    expect(wrapper.text()).toContain('#猫')
+  })
+
+  it('タグを押すと、状態・検索語の絞り込みを外してそのタグで本棚を開く', async () => {
+    stubServer({ ...baseBook, tags: ['名作'] })
+    const { wrapper, router } = await mountAt('/books/7')
+    const store = useBooksStore()
+    store.filters.status = 'done'
+    store.filters.q = '猫'
+
+    await wrapper.findAll('button').find((b) => b.text() === '#名作')!.trigger('click')
+    await flushPromises()
+    expect(router.currentRoute.value.path).toBe('/')
+    expect(store.filters).toMatchObject({ status: '', q: '', tag: '名作' })
+  })
+
+  it('シリーズを押すと、そのシリーズで絞り込み、シリーズ順にして本棚を開く', async () => {
+    stubServer({ ...baseBook, series: '漱石全集', volume: 2 })
+    const { wrapper, router } = await mountAt('/books/7')
+
+    await wrapper.findAll('button').find((b) => b.text() === '漱石全集 2巻')!.trigger('click')
+    await flushPromises()
+    expect(router.currentRoute.value.path).toBe('/')
+    expect(useBooksStore().filters).toMatchObject({ series: '漱石全集', sort: 'series', order: 'asc' })
+  })
+})
 })

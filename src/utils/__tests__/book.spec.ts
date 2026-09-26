@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { daysSince, formatDate, progressOf, STATUS_OPTIONS } from '../book'
+import { daysSince, formatDate, progressOf, seriesLabel, splitList, STATUS_OPTIONS } from '../book'
 
 describe('progressOf', () => {
   it('現在のページと総ページ数から割合を計算する', () => {
@@ -44,6 +44,24 @@ describe('daysSince', () => {
   it('不正な値・未来の日時は null', () => {
     expect(daysSince('not a date', now)).toBeNull()
     expect(daysSince(new Date(2026, 8, 27, 12, 0).toISOString(), now)).toBeNull()
+  })
+})
+
+describe('seriesLabel', () => {
+  it('シリーズ名と巻数を「◯巻」の形でつなぐ', () => {
+    expect(seriesLabel({ series: 'ONE PIECE', volume: 3 })).toBe('ONE PIECE 3巻')
+  })
+
+  it('巻数がなければシリーズ名だけ、シリーズがなければ null', () => {
+    expect(seriesLabel({ series: 'ONE PIECE', volume: null })).toBe('ONE PIECE')
+    expect(seriesLabel({ series: null, volume: 3 })).toBeNull()
+  })
+})
+
+describe('splitList', () => {
+  it('読点・カンマ（全角含む）で区切り、空白と空要素を除いて重複をまとめる', () => {
+    expect(splitList(' 漫画、冒険, 漫画，, ')).toEqual(['漫画', '冒険'])
+    expect(splitList('')).toEqual([])
   })
 })
 
