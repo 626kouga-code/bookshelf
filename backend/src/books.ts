@@ -6,7 +6,7 @@ import { normalizeIsbn } from './isbn.ts'
 const STATUSES = ['want', 'reading', 'done'] as const
 type Status = (typeof STATUSES)[number]
 
-interface BookRow {
+export interface BookRow {
   id: number
   title: string
   authors: string | null
@@ -20,6 +20,10 @@ interface BookRow {
   review: string | null
   added_at: string | null
   finished_at: string | null
+  favorite: number
+  tags: string | null
+  series: string | null
+  volume: number | null
 }
 
 /** 書き込み可能な項目。undefined は「指定なし」、null は「値を消す」。 */
@@ -34,10 +38,40 @@ interface BookInput {
   current_page?: number | null
   rating?: number | null
   review?: string | null
+  favorite?: boolean
+  tags?: string[] | null
+  series?: string | null
+  volume?: number | null
 }
 
-function toBook(row: BookRow) {
-  return { ...row, authors: row.authors ? (JSON.parse(row.authors) as string[]) : [] }
+/** DBの行をAPIの形にする（JSONで保存した配列を戻し、favorite を真偽値にする）。 */
+export function toBook(row: BookRow) {
+  return {
+    ...row,
+    authors: row.authors ? (JSON.parse(row.authors) as string[]) : [],
+    tags: row.tags ? (JSON.parse(row.tags) as string[]) : [],
+    favorite: row.favorite === 1,
+  }
+}
+
+/** 配列をJSONにして保存する。空・未設定は null。 */
+function toJsonArray(values: string[] | null | undefined): string | null {
+  return values && values.length ? JSON.stringify(values) : null
+}
+
+/** 文字列の配列を検証し、前後の空白を除いて空要素を捨てる。`unique` なら重複も除く。 */
+function optionalStringArray(
+  body: Record<string, unknown>,
+  key: string,
+  unique = false,
+): string[] | null | undefined {
+  const v = body[key]
+  if (v === undefined || v === null) return v
+  if (!Array.isArray(v) || v.some((a) => typeof a !== 'string')) {
+    throw new ApiError(400, `${key} は文字列の配列で指定してください`)
+  }
+  const values = (v as string[]).map((a) => a.trim()).filter((a) => a !== '')
+  return unique ? [...new Set(values)] : values
 }
 
 function optionalString(body: Record<string, unknown>, key: string): string | null | undefined {
@@ -77,13 +111,14 @@ function parseBookInput(raw: unknown): BookInput {
     input.title = body.title.trim()
   }
 
-  if (body.authors === null) {
-    input.authors = null
-  } else if (body.authors !== undefined) {
-    if (!Array.isArray(body.authors) || body.authors.some((a) => typeof a !== 'string')) {
-      throw new ApiError(400, 'authors は文字列の配列で指定してください')
-    }
-    input.authors = (body.authors as string[]).map((a) => a.trim()).filter((a) => a !== '')
+  const authors = optionalStringArray(body, 'authors')
+  if (authors !== undefined) input.authors = authors
+  const tags = optionalStringArray(body, 'tags', true)
+  if (tags !== undefined) input.tags = tags
+
+  if (body.favorite !== undefined) {
+    if (typeof body.favorite !== 'boolean') throw new ApiError(400, 'favorite は true / false で指定してください')
+    input.favorite = body.favorite
   }
 
   const isbn = optionalString(body, 'isbn')
@@ -109,6 +144,8 @@ function parseBookInput(raw: unknown): BookInput {
     cover: optionalString(body, 'cover'),
     genre: optionalString(body, 'genre'),
     review: optionalString(body, 'review'),
+    series: optionalString(body, 'series'),
+    volume: optionalInt(body, 'volume', 1),
   }
   for (const [key, value] of Object.entries(optionals)) {
     if (value !== undefined) Object.assign(input, { [key]: value })
@@ -123,6 +160,7 @@ const SORT_COLUMNS = {
   title: 'title',
   rating: 'rating',
   finished_at: 'finished_at',
+  series: 'series',
 } as const
 type SortKey = keyof typeof SORT_COLUMNS
 
@@ -131,6 +169,9 @@ interface ListQuery {
   genre?: string
   rating?: number
   author?: string
+  tag?: string
+  series?: string
+  favorite?: boolean
   q?: string
   sort: SortKey
   order: 'asc' | 'desc'
@@ -154,6 +195,11 @@ function parseListQuery(query: Record<string, string>): ListQuery {
     }
   }
 
+  const favorite = get('favorite')
+  if (favorite !== undefined && favorite !== 'true' && favorite !== 'false') {
+    throw new ApiError(400, 'favorite は true / false のいずれかで指定してください')
+  }
+
   const sort = get('sort') ?? 'added_at'
   if (!(sort in SORT_COLUMNS)) {
     throw new ApiError(400, `sort は ${Object.keys(SORT_COLUMNS).join(' / ')} のいずれかで指定してください`)
@@ -169,6 +215,9 @@ function parseListQuery(query: Record<string, string>): ListQuery {
     genre: get('genre'),
     rating,
     author: get('author'),
+    tag: get('tag'),
+    series: get('series'),
+    favorite: favorite === undefined ? undefined : favorite === 'true',
     q: get('q'),
     sort: sort as SortKey,
     order,
@@ -215,12 +264,13 @@ export function booksRoutes(db: Db) {
     const result = db
       .prepare(
         `INSERT INTO books
-           (title, authors, isbn, pages, cover, genre, status, current_page, rating, review, added_at, finished_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+           (title, authors, isbn, pages, cover, genre, status, current_page, rating, review, added_at, finished_at,
+            favorite, tags, series, volume)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         input.title,
-        input.authors ? JSON.stringify(input.authors) : null,
+        toJsonArray(input.authors),
         input.isbn ?? null,
         input.pages ?? null,
         input.cover ?? null,
@@ -231,6 +281,10 @@ export function booksRoutes(db: Db) {
         input.review ?? null,
         now,
         status === 'done' ? now : null,
+        input.favorite ? 1 : 0,
+        toJsonArray(input.tags),
+        input.series ?? null,
+        input.volume ?? null,
       )
 
     return c.json(toBook(requireBook(Number(result.lastInsertRowid))), 201)
@@ -257,6 +311,18 @@ export function booksRoutes(db: Db) {
       where.push('EXISTS (SELECT 1 FROM json_each(books.authors) WHERE value = ?)')
       params.push(q.author)
     }
+    if (q.tag) {
+      where.push('EXISTS (SELECT 1 FROM json_each(books.tags) WHERE value = ?)')
+      params.push(q.tag)
+    }
+    if (q.series) {
+      where.push('series = ?')
+      params.push(q.series)
+    }
+    if (q.favorite !== undefined) {
+      where.push('favorite = ?')
+      params.push(q.favorite ? 1 : 0)
+    }
     if (q.q) {
       const like = `%${q.q.replace(/[\\%_]/g, '\\$&')}%`
       where.push(
@@ -266,10 +332,12 @@ export function booksRoutes(db: Db) {
     }
 
     const column = SORT_COLUMNS[q.sort]
-    const collate = q.sort === 'title' ? ' COLLATE NOCASE' : ''
+    const collate = q.sort === 'title' || q.sort === 'series' ? ' COLLATE NOCASE' : ''
+    // シリーズ順は、同じシリーズの中を巻数順に並べる（巻数なしは後ろ）
+    const volumeOrder = q.sort === 'series' ? `volume IS NULL, volume ${q.order}, ` : ''
     const sql = `SELECT * FROM books
       ${where.length ? `WHERE ${where.join(' AND ')}` : ''}
-      ORDER BY ${column} IS NULL, ${column}${collate} ${q.order}, id ${q.order}`
+      ORDER BY ${column} IS NULL, ${column}${collate} ${q.order}, ${volumeOrder}id ${q.order}`
 
     return c.json((db.prepare(sql).all(...params) as BookRow[]).map(toBook))
   })
@@ -292,13 +360,12 @@ export function booksRoutes(db: Db) {
 
     db.prepare(
       `UPDATE books SET title = ?, authors = ?, isbn = ?, pages = ?, cover = ?, genre = ?,
-         status = ?, current_page = ?, rating = ?, review = ?, finished_at = ?
+         status = ?, current_page = ?, rating = ?, review = ?, finished_at = ?,
+         favorite = ?, tags = ?, series = ?, volume = ?
        WHERE id = ?`,
     ).run(
       input.title ?? current.title,
-      input.authors === undefined
-        ? current.authors
-        : input.authors && JSON.stringify(input.authors),
+      input.authors === undefined ? current.authors : toJsonArray(input.authors),
       pick(input.isbn, current.isbn),
       pick(input.pages, current.pages),
       pick(input.cover, current.cover),
@@ -308,6 +375,10 @@ export function booksRoutes(db: Db) {
       input.rating === undefined ? current.rating : (input.rating ?? 0),
       pick(input.review, current.review),
       finishedAt,
+      input.favorite === undefined ? current.favorite : input.favorite ? 1 : 0,
+      input.tags === undefined ? current.tags : toJsonArray(input.tags),
+      pick(input.series, current.series),
+      pick(input.volume, current.volume),
       id,
     )
 

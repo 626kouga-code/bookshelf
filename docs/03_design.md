@@ -21,6 +21,10 @@
 | review | TEXT | 感想メモ |
 | added_at | TEXT | 登録日時（ISO 8601） |
 | finished_at | TEXT | 読了日（`done` にした日に自動設定） |
+| favorite | INTEGER NOT NULL | お気に入り（0/1。既定0。APIでは真偽値） |
+| tags | TEXT | タグ（JSON配列の文字列。重複なし） |
+| series | TEXT | シリーズ名 |
+| volume | INTEGER | 巻数（1以上） |
 
 ### reading_logs
 | 列 | 型 | 説明 |
@@ -49,6 +53,10 @@
 
 `period_type` と `period` の組み合わせは一意とする。
 
+### マイグレーション
+
+上記のうち `favorite`・`tags`・`series`・`volume` は後から追加した列。起動時に `PRAGMA user_version` で適用済みの数を確認し、未適用のマイグレーション（`backend/src/db.ts` の `MIGRATIONS`）を順に適用する。既存のDBも、データを残したまま列が追加される。構造を変えるときは初期スキーマを書き換えず、`MIGRATIONS` に追記する。
+
 ## 7. API（REST / JSON、ベースパス `/api`）
 
 | メソッド | パス | 説明 |
@@ -63,7 +71,7 @@
 | GET | `/api/stats` | 統計（月別読了数、ジャンル別、累計ページ、連続読書日数、直近53週の日別ページ数） |
 | GET / PUT | `/api/goals` | 読書目標の取得・設定 |
 | GET | `/api/export` | 全データをJSONで出力 |
-| POST | `/api/import` | JSONから全データを復元 |
+| POST | `/api/import` | JSONから全データを復元（`favorite`・`tags`・`series`・`volume` がない古い形式は既定値で読み込む） |
 
 ### `GET /api/books` のクエリパラメータ
 
@@ -75,8 +83,11 @@
 | `genre` | ジャンルの完全一致 |
 | `rating` | 星評価の完全一致（0〜5。0は未評価） |
 | `author` | 著者の完全一致（複数著者のいずれか） |
+| `tag` | タグの完全一致（複数タグのいずれか） |
+| `series` | シリーズ名の完全一致 |
+| `favorite` | `true` / `false` |
 | `q` | タイトル・著者の部分一致（英字は大文字小文字を区別しない） |
-| `sort` | `added_at`（既定）/ `title` / `rating` / `finished_at` |
+| `sort` | `added_at`（既定）/ `title` / `rating` / `finished_at` / `series`（シリーズ名→巻数の順。巻数なしは同じシリーズの末尾） |
 | `order` | `desc`（既定）/ `asc`。`sort` の値が未設定（NULL）の本は常に末尾 |
 
 エラーは `{ "error": "メッセージ" }` 形式のJSONと適切なHTTPステータスで返す。

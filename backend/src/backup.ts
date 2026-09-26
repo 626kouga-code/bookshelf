@@ -1,5 +1,6 @@
 import { Hono } from 'hono'
 import type { Db } from './db.ts'
+import { toBook, type BookRow } from './books.ts'
 import { ApiError } from './errors.ts'
 
 const FORMAT_VERSION = 1
@@ -9,26 +10,6 @@ type Status = (typeof STATUSES)[number]
 
 const PERIOD_TYPES = ['year', 'month'] as const
 type PeriodType = (typeof PERIOD_TYPES)[number]
-
-interface BookRow {
-  id: number
-  title: string
-  authors: string | null
-  isbn: string | null
-  pages: number | null
-  cover: string | null
-  genre: string | null
-  status: Status
-  current_page: number | null
-  rating: number | null
-  review: string | null
-  added_at: string | null
-  finished_at: string | null
-}
-
-function toBook(row: BookRow) {
-  return { ...row, authors: row.authors ? (JSON.parse(row.authors) as string[]) : [] }
-}
 
 async function readJson(req: Request): Promise<unknown> {
   try {
@@ -92,6 +73,10 @@ interface ImportBook {
   review: string | null
   added_at: string
   finished_at: string | null
+  favorite: boolean
+  tags: string[]
+  series: string | null
+  volume: number | null
 }
 
 function parseImportBook(raw: unknown, index: number): ImportBook {
@@ -100,6 +85,13 @@ function parseImportBook(raw: unknown, index: number): ImportBook {
 
   if (!Array.isArray(b.authors) || b.authors.some((a) => typeof a !== 'string')) {
     throw new ApiError(400, `${path}.authors は文字列の配列で指定してください`)
+  }
+  // favorite・tags・series・volume は後から追加した項目。古いバックアップにはないので、なければ既定値にする
+  if (b.tags !== undefined && (!Array.isArray(b.tags) || b.tags.some((t) => typeof t !== 'string'))) {
+    throw new ApiError(400, `${path}.tags は文字列の配列で指定してください`)
+  }
+  if (b.favorite !== undefined && typeof b.favorite !== 'boolean') {
+    throw new ApiError(400, `${path}.favorite は true / false で指定してください`)
   }
   if (!STATUSES.includes(b.status as Status)) {
     throw new ApiError(400, `${path}.status は ${STATUSES.join(' / ')} のいずれかで指定してください`)
@@ -119,6 +111,10 @@ function parseImportBook(raw: unknown, index: number): ImportBook {
     review: nullableString(b.review, `${path}.review`),
     added_at: requireString(b.added_at, `${path}.added_at`),
     finished_at: nullableString(b.finished_at, `${path}.finished_at`),
+    favorite: (b.favorite as boolean | undefined) ?? false,
+    tags: (b.tags as string[] | undefined) ?? [],
+    series: b.series === undefined ? null : nullableString(b.series, `${path}.series`),
+    volume: b.volume === undefined ? null : nullableInt(b.volume, `${path}.volume`, 1),
   }
 }
 
@@ -308,8 +304,9 @@ export function importRoutes(db: Db) {
 
       const insertBook = db.prepare(
         `INSERT INTO books
-           (id, title, authors, isbn, pages, cover, genre, status, current_page, rating, review, added_at, finished_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+           (id, title, authors, isbn, pages, cover, genre, status, current_page, rating, review, added_at, finished_at,
+            favorite, tags, series, volume)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       for (const b of payload.books) {
         insertBook.run(
@@ -326,6 +323,10 @@ export function importRoutes(db: Db) {
           b.review,
           b.added_at,
           b.finished_at,
+          b.favorite ? 1 : 0,
+          b.tags.length ? JSON.stringify(b.tags) : null,
+          b.series,
+          b.volume,
         )
       }
 
