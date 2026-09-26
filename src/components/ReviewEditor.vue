@@ -37,12 +37,12 @@ function onSave() {
       rows="4"
       placeholder="読んだ感想や気づきをメモ"
       :disabled="disabled"
-      class="w-full rounded border border-stone-300 bg-white px-3 py-2 text-sm"
+      class="w-full rounded border border-stone-300 bg-surface px-3 py-2 text-sm"
     />
     <button
       type="submit"
       :disabled="disabled || !dirty"
-      class="rounded border border-stone-300 bg-white px-3 py-1 text-sm hover:bg-stone-50 disabled:opacity-50"
+      class="rounded border border-stone-300 bg-surface px-3 py-1 text-sm hover:bg-stone-50 disabled:opacity-50"
     >
       感想を保存
     </button>

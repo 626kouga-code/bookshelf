@@ -36,7 +36,7 @@ async function onSearch() {
 </script>
 
 <template>
-  <section aria-labelledby="book-search-heading" class="mb-6 rounded-lg border border-stone-200 bg-white p-4">
+  <section aria-labelledby="book-search-heading" class="mb-6 rounded-lg border border-stone-200 bg-surface p-4">
     <h3 id="book-search-heading" class="text-sm font-semibold">ISBN・タイトルから探す</h3>
     <p class="mt-1 text-xs text-stone-500">見つかった本を選ぶと、下のフォームに自動で入力されます。</p>
 
@@ -46,12 +46,12 @@ async function onSearch() {
         type="search"
         placeholder="ISBN またはタイトル"
         aria-label="検索キーワード"
-        class="min-w-0 flex-1 rounded border border-stone-300 bg-white px-3 py-2 text-sm"
+        class="min-w-0 flex-1 rounded border border-stone-300 bg-surface px-3 py-2 text-sm"
       />
       <button
         type="submit"
         :disabled="loading || query.trim() === ''"
-        class="shrink-0 rounded bg-stone-900 px-4 py-2 text-sm font-semibold text-white hover:bg-stone-700 disabled:opacity-50"
+        class="shrink-0 rounded bg-stone-900 px-4 py-2 text-sm font-semibold text-stone-50 hover:bg-stone-700 disabled:opacity-50"
       >
         {{ loading ? '検索中…' : '検索' }}
       </button>

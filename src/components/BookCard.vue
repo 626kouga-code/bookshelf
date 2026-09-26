@@ -22,7 +22,7 @@ const series = computed(() => seriesLabel(props.book))
 
 <template>
   <article
-    class="relative flex gap-3 rounded-lg border border-stone-200 bg-white p-3 hover:border-stone-400 focus-within:border-stone-400"
+    class="relative flex gap-3 rounded-lg border border-stone-200 bg-surface p-3 hover:border-stone-400 focus-within:border-stone-400"
   >
     <img
       v-if="book.cover"

@@ -64,7 +64,7 @@ function onSubmit() {
           min="1"
           step="1"
           :disabled="disabled"
-          class="w-24 rounded border border-stone-300 bg-white px-2 py-1 text-sm"
+          class="w-24 rounded border border-stone-300 bg-surface px-2 py-1 text-sm"
         />
       </label>
       <label v-if="targetDailyPages !== undefined" class="flex flex-col text-sm">
@@ -75,13 +75,13 @@ function onSubmit() {
           min="1"
           step="1"
           :disabled="disabled"
-          class="w-24 rounded border border-stone-300 bg-white px-2 py-1 text-sm"
+          class="w-24 rounded border border-stone-300 bg-surface px-2 py-1 text-sm"
         />
       </label>
       <button
         type="submit"
         :disabled="disabled"
-        class="rounded border border-stone-300 bg-white px-3 py-1 text-sm hover:bg-stone-50 disabled:opacity-50"
+        class="rounded border border-stone-300 bg-surface px-3 py-1 text-sm hover:bg-stone-50 disabled:opacity-50"
       >
         保存
       </button>

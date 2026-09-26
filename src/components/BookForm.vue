@@ -101,7 +101,7 @@ function pruneUndefined(input: BookInput): BookInput {
   return Object.fromEntries(Object.entries(input).filter(([, v]) => v !== undefined)) as unknown as BookInput
 }
 
-const inputClass = 'mt-1 w-full rounded border border-stone-300 bg-white px-3 py-2 text-sm'
+const inputClass = 'mt-1 w-full rounded border border-stone-300 bg-surface px-3 py-2 text-sm'
 </script>
 
 <template>
@@ -195,7 +195,7 @@ const inputClass = 'mt-1 w-full rounded border border-stone-300 bg-white px-3 py
       <button
         type="submit"
         :disabled="submitting"
-        class="rounded bg-stone-900 px-4 py-2 text-sm font-semibold text-white hover:bg-stone-700 disabled:opacity-50"
+        class="rounded bg-stone-900 px-4 py-2 text-sm font-semibold text-stone-50 hover:bg-stone-700 disabled:opacity-50"
       >
         {{ submitting ? '送信中…' : (submitLabel ?? '登録する') }}
       </button>
@@ -203,7 +203,7 @@ const inputClass = 'mt-1 w-full rounded border border-stone-300 bg-white px-3 py
         v-if="cancelLabel"
         type="button"
         :disabled="submitting"
-        class="rounded border border-stone-300 bg-white px-4 py-2 text-sm hover:bg-stone-50 disabled:opacity-50"
+        class="rounded border border-stone-300 bg-surface px-4 py-2 text-sm hover:bg-stone-50 disabled:opacity-50"
         @click="emit('cancel')"
       >
         {{ cancelLabel }}

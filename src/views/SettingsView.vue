@@ -1,9 +1,16 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { exportBackup, importBackup } from '@/api/backup'
+import { applyTheme, loadThemeSetting, saveThemeSetting, THEME_OPTIONS } from '@/utils/theme'
 
 const router = useRouter()
+
+const themeSetting = ref(loadThemeSetting())
+watch(themeSetting, (setting) => {
+  saveThemeSetting(setting)
+  applyTheme(setting)
+})
 
 const exporting = ref(false)
 const exportError = ref<string | null>(null)
@@ -75,13 +82,33 @@ async function onImportFileChange(event: Event) {
   <section class="mx-auto max-w-2xl">
     <h2 class="text-xl font-bold">設定</h2>
 
+    <fieldset class="mt-6">
+      <legend class="text-sm font-semibold">テーマ</legend>
+      <div class="mt-2 flex flex-wrap gap-2">
+        <label
+          v-for="option in THEME_OPTIONS"
+          :key="option.value"
+          class="flex cursor-pointer items-center gap-2 rounded border px-3 py-2 text-sm"
+          :class="
+            themeSetting === option.value
+              ? 'border-stone-900 font-semibold'
+              : 'border-stone-300 bg-surface text-stone-600 hover:bg-stone-50'
+          "
+        >
+          <input v-model="themeSetting" type="radio" name="theme" :value="option.value" class="accent-stone-900" />
+          {{ option.label }}
+        </label>
+      </div>
+      <p class="mt-1 text-xs text-stone-500">このブラウザに保存されます。</p>
+    </fieldset>
+
     <section aria-label="エクスポート" class="mt-6">
       <h3 class="text-sm font-semibold">JSONエクスポート</h3>
       <p class="mt-1 text-sm text-stone-600">本・読書ログ・引用・読書目標をすべてJSONファイルとして書き出します。</p>
       <button
         type="button"
         :disabled="exporting"
-        class="mt-2 rounded bg-stone-900 px-4 py-2 text-sm font-semibold text-white hover:bg-stone-700 disabled:opacity-50"
+        class="mt-2 rounded bg-stone-900 px-4 py-2 text-sm font-semibold text-stone-50 hover:bg-stone-700 disabled:opacity-50"
         @click="onExport"
       >
         {{ exporting ? '書き出し中…' : 'エクスポート' }}

@@ -8,8 +8,8 @@ export const STATUS_LABELS: Record<BookStatus, string> = {
 
 export const STATUS_CLASSES: Record<BookStatus, string> = {
   want: 'bg-stone-100 text-stone-700',
-  reading: 'bg-sky-100 text-sky-800',
-  done: 'bg-emerald-100 text-emerald-800',
+  reading: 'bg-sky-100 text-sky-800 dark:bg-sky-900 dark:text-sky-100',
+  done: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-100',
 }
 
 /** 状態の選択肢（表示順）。 */

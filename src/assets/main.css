@@ -1,1 +1,44 @@
 @import "tailwindcss";
+
+/* dark: 修飾子は、<html data-theme="dark"> のときに効かせる（OSの設定ではなく、アプリのテーマ設定に従う） */
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
+@theme {
+  /* カード・入力欄・ヘッダーなどの面の色。ダークテーマで暗くするため、bg-white ではなくこれを使う */
+  --color-surface: #fff;
+}
+
+/*
+ * ダークテーマ。グレー（stone）の明暗を反転させ、各コンポーネントのクラスを書き換えずに暗い配色にする。
+ * 例: bg-stone-50（画面の背景）→ ほぼ黒、text-stone-900（本文）→ ほぼ白。
+ * 反転すると崩れる色付きの部分（状態バッジ・ヒートマップなど）は、コンポーネント側で dark: を指定する。
+ */
+[data-theme="dark"] {
+  color-scheme: dark;
+
+  --color-surface: oklch(21.6% 0.006 56.043); /* stone-900 */
+
+  --color-stone-50: oklch(14.7% 0.004 49.25);
+  --color-stone-100: oklch(26.8% 0.007 34.298);
+  --color-stone-200: oklch(30.5% 0.008 56);
+  --color-stone-300: oklch(37.4% 0.01 67.558);
+  --color-stone-400: oklch(50% 0.011 60);
+  --color-stone-500: oklch(66% 0.012 58);
+  --color-stone-600: oklch(76% 0.008 56);
+  --color-stone-700: oklch(86.9% 0.005 56.366);
+  --color-stone-800: oklch(92.3% 0.003 48.717);
+  --color-stone-900: oklch(96% 0.001 106.424);
+  --color-stone-950: oklch(98.5% 0.001 106.423);
+
+  /* エラー表示（bg-red-50・border-red-200・text-red-700 など） */
+  --color-red-50: oklch(25.8% 0.092 26.042 / 60%);
+  --color-red-200: oklch(39.6% 0.141 25.723);
+  --color-red-300: oklch(44.4% 0.177 26.899);
+  --color-red-600: oklch(70.4% 0.191 22.216);
+  --color-red-700: oklch(80.8% 0.114 19.571);
+
+  /* お気に入りの絞り込みボタン（bg-amber-50・text-amber-700） */
+  --color-amber-50: oklch(27.9% 0.077 45.635 / 60%);
+  --color-amber-600: oklch(82.8% 0.189 84.429);
+  --color-amber-700: oklch(87.9% 0.169 91.605);
+}

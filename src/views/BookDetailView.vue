@@ -457,7 +457,7 @@ async function onDelete() {
         <div class="mt-8 flex gap-2">
           <button
             type="button"
-            class="rounded bg-stone-900 px-4 py-2 text-sm font-semibold text-white hover:bg-stone-700"
+            class="rounded bg-stone-900 px-4 py-2 text-sm font-semibold text-stone-50 hover:bg-stone-700"
             @click="startEdit"
           >
             編集
@@ -465,7 +465,7 @@ async function onDelete() {
           <button
             type="button"
             :disabled="deleting"
-            class="rounded border border-red-300 bg-white px-4 py-2 text-sm text-red-700 hover:bg-red-50 disabled:opacity-50"
+            class="rounded border border-red-300 bg-surface px-4 py-2 text-sm text-red-700 hover:bg-red-50 disabled:opacity-50"
             @click="onDelete"
           >
             {{ deleting ? '削除中…' : '削除' }}
