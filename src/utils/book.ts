@@ -25,6 +25,20 @@ export function progressOf(book: Pick<Book, 'pages' | 'current_page'>) {
   return { current, pages, percent: Math.min(100, Math.round((current / pages) * 100)) }
 }
 
+/**
+ * 登録日から今日までの経過日数（ブラウザのタイムゾーンでの日付の差）。当日登録は0。
+ * 不正な値や未来の日時なら null。
+ */
+export function daysSince(iso: string, now: Date = new Date()): number | null {
+  const date = new Date(iso)
+  if (Number.isNaN(date.getTime())) return null
+  // 時刻を切り捨てて日付だけで比べる（UTC換算で差を取り、夏時間のずれを避ける）
+  const start = Date.UTC(date.getFullYear(), date.getMonth(), date.getDate())
+  const today = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate())
+  const days = Math.round((today - start) / 86_400_000)
+  return days < 0 ? null : days
+}
+
 /** ISO 8601 の日時を、ブラウザのタイムゾーンでの日付（例: 2026/9/21）にする。 */
 export function formatDate(iso: string | null): string {
   if (!iso) return ''

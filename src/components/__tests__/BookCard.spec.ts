@@ -53,6 +53,17 @@ describe('BookCard', () => {
     expect(render({ pages: null }).text()).not.toContain('ページ（')
   })
 
+  it('読みたいの本は登録日からの積読日数を表示する', () => {
+    const added = new Date()
+    added.setDate(added.getDate() - 3)
+    expect(render({ status: 'want', added_at: added.toISOString() }).text()).toContain('積読 3日')
+  })
+
+  it('読みたい以外の本には積読日数を表示しない', () => {
+    expect(render({ status: 'reading' }).text()).not.toContain('積読')
+    expect(render({ status: 'done' }).text()).not.toContain('積読')
+  })
+
   it('評価があれば星で表示し、未評価なら表示しない', () => {
     expect(render({ rating: 4 }).text()).toContain('★★★★☆')
     expect(render({ rating: 0 }).find('[aria-label^="評価"]').exists()).toBe(false)
