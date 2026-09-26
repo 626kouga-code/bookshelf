@@ -10,11 +10,19 @@ export interface GenreCount {
   count: number
 }
 
+/** 1日に読んだページ数（date は YYYY-MM-DD）。 */
+export interface DailyPages {
+  date: string
+  pages: number
+}
+
 export interface Stats {
   monthly_finished: MonthlyFinished[]
   genre_counts: GenreCount[]
   total_pages_read: number
   current_streak_days: number
+  /** 直近53週の日別ページ数。記録がある日だけを日付順に含む。 */
+  daily_pages: DailyPages[]
 }
 
 export function getStats(): Promise<Stats> {

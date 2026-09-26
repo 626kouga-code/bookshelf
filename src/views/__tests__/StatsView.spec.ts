@@ -19,6 +19,7 @@ function makeStats(overrides: Partial<Stats> = {}): Stats {
     genre_counts: [],
     total_pages_read: 0,
     current_streak_days: 0,
+    daily_pages: [],
     ...overrides,
   }
 }
@@ -64,6 +65,20 @@ describe('StatsView', () => {
     expect(wrapper.text()).toContain('5日')
     expect(wrapper.text()).toContain('未設定')
     expect(wrapper.findAll('rect').length).toBeGreaterThan(0)
+  })
+
+  it('日別ページ数を読書ヒートマップに表示する', async () => {
+    const today = `${currentMonth}-${String(now.getDate()).padStart(2, '0')}`
+    stubFetch((url) => {
+      if (url.pathname === '/api/stats') return Response.json(makeStats({ daily_pages: [{ date: today, pages: 30 }] }))
+      const periodType = url.searchParams.get('period_type')
+      return Response.json(makeGoal(periodType === 'year' ? 'year' : 'month', url.searchParams.get('period')!))
+    })
+    const wrapper = await mountView()
+
+    const heatmap = wrapper.find('section[aria-label="読書ヒートマップ"]')
+    expect(heatmap.text()).toContain('直近1年で 1日・30ページ読書')
+    expect(heatmap.find(`rect[data-date="${today}"]`).attributes('data-level')).toBe('4')
   })
 
   it('当月の読了数を月間目標に対する達成度として表示する', async () => {
