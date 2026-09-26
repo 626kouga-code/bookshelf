@@ -14,8 +14,17 @@ const STEP = 12
 const LEFT = 20
 const TOP = 14
 
-/** 色の濃さ（0: 記録なし、1〜4: 最大ページ数に対する割合で4段階）。クラス名はTailwindが拾えるよう文字列のまま書く。 */
-const LEVEL_CLASSES = ['fill-stone-100', 'fill-sky-200', 'fill-sky-400', 'fill-sky-600', 'fill-sky-800']
+/**
+ * 色の濃さ（0: 記録なし、1〜4: 最大ページ数に対する割合で4段階）。クラス名はTailwindが拾えるよう文字列のまま書く。
+ * ダークテーマでは、たくさん読んだ日ほど明るくする。
+ */
+const LEVEL_CLASSES = [
+  'fill-stone-100',
+  'fill-sky-200 dark:fill-sky-900',
+  'fill-sky-400 dark:fill-sky-700',
+  'fill-sky-600 dark:fill-sky-500',
+  'fill-sky-800 dark:fill-sky-300',
+]
 const WEEKDAY_LABELS = [
   { row: 1, label: '月' },
   { row: 3, label: '水' },

@@ -135,3 +135,31 @@ describe('SettingsView', () => {
     })
   })
 })
+
+describe('SettingsView（テーマ）', () => {
+  afterEach(() => {
+    localStorage.clear()
+    delete document.documentElement.dataset.theme
+  })
+
+  const radio = (wrapper: Awaited<ReturnType<typeof mountView>>['wrapper'], label: string) =>
+    wrapper.findAll('label').find((l) => l.text() === label)!.find('input')
+
+  it('既定は「システムに合わせる」が選ばれている', async () => {
+    const { wrapper } = await mountView()
+    expect((radio(wrapper, 'システムに合わせる').element as HTMLInputElement).checked).toBe(true)
+  })
+
+  it('ダークを選ぶと、すぐに適用して保存する', async () => {
+    const { wrapper } = await mountView()
+    await radio(wrapper, 'ダーク').setValue(true)
+    expect(document.documentElement.dataset.theme).toBe('dark')
+    expect(localStorage.getItem('reading-app:theme')).toBe('dark')
+  })
+
+  it('保存済みの設定が選ばれた状態で開く', async () => {
+    localStorage.setItem('reading-app:theme', 'light')
+    const { wrapper } = await mountView()
+    expect((radio(wrapper, 'ライト').element as HTMLInputElement).checked).toBe(true)
+  })
+})

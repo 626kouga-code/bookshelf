@@ -87,12 +87,12 @@ onBeforeUnmount(() => clearTimeout(debounceTimer))
         type="search"
         placeholder="タイトル・著者で検索"
         aria-label="キーワード検索"
-        class="min-w-0 flex-1 rounded border border-stone-300 bg-white px-3 py-2 text-sm"
+        class="min-w-0 flex-1 rounded border border-stone-300 bg-surface px-3 py-2 text-sm"
       />
       <select
         v-model="sortValue"
         aria-label="並べ替え"
-        class="rounded border border-stone-300 bg-white px-3 py-2 text-sm"
+        class="rounded border border-stone-300 bg-surface px-3 py-2 text-sm"
       >
         <option v-for="s in SORTS" :key="s.value" :value="s.value">{{ s.label }}</option>
       </select>
@@ -103,7 +103,7 @@ onBeforeUnmount(() => clearTimeout(debounceTimer))
         :class="
           filters.favoriteOnly
             ? 'border-amber-400 bg-amber-50 text-amber-700'
-            : 'border-stone-300 bg-white text-stone-600 hover:bg-stone-50'
+            : 'border-stone-300 bg-surface text-stone-600 hover:bg-stone-50'
         "
         @click="filters.favoriteOnly = !filters.favoriteOnly"
       >

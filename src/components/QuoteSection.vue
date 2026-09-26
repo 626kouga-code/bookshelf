@@ -42,7 +42,7 @@ function onSubmit() {
         rows="3"
         placeholder="心に残った一節をメモ"
         :disabled="disabled"
-        class="w-full rounded border border-stone-300 bg-white px-3 py-2 text-sm"
+        class="w-full rounded border border-stone-300 bg-surface px-3 py-2 text-sm"
       />
       <div class="flex flex-wrap items-center gap-2">
         <label class="flex items-center gap-2 text-sm">
@@ -53,13 +53,13 @@ function onSubmit() {
             min="1"
             step="1"
             :disabled="disabled"
-            class="w-20 rounded border border-stone-300 bg-white px-2 py-1 text-sm"
+            class="w-20 rounded border border-stone-300 bg-surface px-2 py-1 text-sm"
           />
         </label>
         <button
           type="submit"
           :disabled="disabled"
-          class="rounded border border-stone-300 bg-white px-3 py-1 text-sm hover:bg-stone-50 disabled:opacity-50"
+          class="rounded border border-stone-300 bg-surface px-3 py-1 text-sm hover:bg-stone-50 disabled:opacity-50"
         >
           引用を追加
         </button>

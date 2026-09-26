@@ -48,7 +48,7 @@ onMounted(() => search())
       type="search"
       placeholder="引用をキーワードで検索"
       aria-label="キーワード検索"
-      class="mt-4 w-full rounded border border-stone-300 bg-white px-3 py-2 text-sm"
+      class="mt-4 w-full rounded border border-stone-300 bg-surface px-3 py-2 text-sm"
     />
 
     <p v-if="error" role="alert" class="mt-4 rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700">
