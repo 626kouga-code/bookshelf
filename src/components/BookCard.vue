@@ -2,11 +2,15 @@
 import { computed } from 'vue'
 import { RouterLink } from 'vue-router'
 import type { Book } from '@/api/books'
-import { progressOf, STATUS_CLASSES, STATUS_LABELS } from '@/utils/book'
+import { daysSince, progressOf, STATUS_CLASSES, STATUS_LABELS } from '@/utils/book'
 
 const props = defineProps<{ book: Book }>()
 
 const progress = computed(() => progressOf(props.book))
+/** 「読みたい」の本の積読日数（登録日から）。それ以外の状態では null。 */
+const tsundokuDays = computed(() =>
+  props.book.status === 'want' ? daysSince(props.book.added_at) : null,
+)
 </script>
 
 <template>
@@ -41,6 +45,7 @@ const progress = computed(() => progressOf(props.book))
         <span class="rounded-full px-2 py-0.5" :class="STATUS_CLASSES[book.status]">
           {{ STATUS_LABELS[book.status] }}
         </span>
+        <span v-if="tsundokuDays !== null" class="text-stone-500">積読 {{ tsundokuDays }}日</span>
         <span v-if="book.genre" class="text-stone-500">{{ book.genre }}</span>
         <span
           v-if="book.rating > 0"

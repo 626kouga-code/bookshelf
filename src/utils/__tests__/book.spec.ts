@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { formatDate, progressOf, STATUS_OPTIONS } from '../book'
+import { daysSince, formatDate, progressOf, STATUS_OPTIONS } from '../book'
 
 describe('progressOf', () => {
   it('現在のページと総ページ数から割合を計算する', () => {
@@ -18,6 +18,32 @@ describe('progressOf', () => {
   it('総ページ数か現在のページが未入力なら null', () => {
     expect(progressOf({ pages: null, current_page: 10 })).toBeNull()
     expect(progressOf({ pages: 100, current_page: null })).toBeNull()
+  })
+})
+
+describe('daysSince', () => {
+  // ローカル時刻で日時を作り、実行環境のタイムゾーンに左右されないようにする
+  const now = new Date(2026, 8, 26, 9, 0)
+
+  it('登録日から今日までの日数を返す', () => {
+    expect(daysSince(new Date(2026, 8, 16, 12, 0).toISOString(), now)).toBe(10)
+  })
+
+  it('時刻ではなく日付で数える（前日の夜遅くの登録でも1日）', () => {
+    expect(daysSince(new Date(2026, 8, 25, 23, 59).toISOString(), now)).toBe(1)
+  })
+
+  it('当日の登録は0日', () => {
+    expect(daysSince(new Date(2026, 8, 26, 0, 1).toISOString(), now)).toBe(0)
+  })
+
+  it('年をまたいでも数えられる', () => {
+    expect(daysSince(new Date(2025, 8, 26, 12, 0).toISOString(), now)).toBe(365)
+  })
+
+  it('不正な値・未来の日時は null', () => {
+    expect(daysSince('not a date', now)).toBeNull()
+    expect(daysSince(new Date(2026, 8, 27, 12, 0).toISOString(), now)).toBeNull()
   })
 })
 
