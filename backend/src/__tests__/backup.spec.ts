@@ -121,6 +121,32 @@ describe('backup API', () => {
       expect(await json(await send('GET', '/api/books'))).toEqual([])
     })
 
+    it('タグ・シリーズ・お気に入りもエクスポート→インポートで復元される', async () => {
+      await send('POST', '/api/books', { title: '本', tags: ['漫画'], series: 'S', volume: 3, favorite: true })
+      const exported = await json(await send('GET', '/api/export'))
+
+      await send('POST', '/api/import', { ...validPayload(), books: [], reading_logs: [], quotes: [], goals: [] })
+      await send('POST', '/api/import', exported)
+
+      const books = (await (await send('GET', '/api/books')).json()) as Record<string, unknown>[]
+      expect(books[0]).toMatchObject({ title: '本', tags: ['漫画'], series: 'S', volume: 3, favorite: true })
+    })
+
+    it('タグ・シリーズ・お気に入りのない古いバックアップは既定値で読み込む', async () => {
+      // validPayload() は項目追加前の形式
+      await send('POST', '/api/import', validPayload())
+      const book = await json(await send('GET', '/api/books/10'))
+      expect(book).toMatchObject({ favorite: false, tags: [], series: null, volume: null })
+    })
+
+    it('タグ・お気に入り・巻数の形式が不正なら400', async () => {
+      for (const extra of [{ tags: 'a' }, { favorite: 'yes' }, { volume: 0 }]) {
+        const payload = validPayload()
+        Object.assign(payload.books[0]!, extra)
+        expect((await send('POST', '/api/import', payload)).status).toBe(400)
+      }
+    })
+
     describe('検証エラー（既存データが変化しないことも確認する）', () => {
       const expectRejected = async (mutate: (p: ReturnType<typeof validPayload>) => unknown) => {
         const before = await json(await send('POST', '/api/books', { title: '保持される本' }))

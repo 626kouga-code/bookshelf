@@ -352,4 +352,82 @@ describe('books API', () => {
       expect((await send('DELETE', '/api/books/999')).status).toBe(404)
     })
   })
+
+  describe('タグ・シリーズ・お気に入り', () => {
+    it('登録時の既定値は、お気に入りなし・タグなし・シリーズなし', async () => {
+      const { book } = await create({ title: '本' })
+      expect(book).toMatchObject({ favorite: false, tags: [], series: null, volume: null })
+    })
+
+    it('タグ・シリーズ・巻数・お気に入りを登録できる（タグは空白を除き、重複をまとめる）', async () => {
+      const { res, book } = await create({
+        title: 'ONE PIECE 1',
+        tags: [' 漫画 ', '冒険', '漫画', ''],
+        series: 'ONE PIECE',
+        volume: 1,
+        favorite: true,
+      })
+      expect(res.status).toBe(201)
+      expect(book).toMatchObject({ tags: ['漫画', '冒険'], series: 'ONE PIECE', volume: 1, favorite: true })
+    })
+
+    it('更新では指定した項目だけが変わり、null で消せる', async () => {
+      const { book } = await create({ title: '本', tags: ['a'], series: 'S', volume: 2, favorite: true })
+
+      const res = await send('PUT', `/api/books/${book.id}`, { favorite: false })
+      expect(await res.json()).toMatchObject({ favorite: false, tags: ['a'], series: 'S', volume: 2 })
+
+      const cleared = await send('PUT', `/api/books/${book.id}`, { tags: null, series: null, volume: null })
+      expect(await cleared.json()).toMatchObject({ tags: [], series: null, volume: null })
+    })
+
+    it.each([
+      [{ favorite: 1 }, 'favorite'],
+      [{ tags: 'a' }, 'tags'],
+      [{ tags: [1] }, 'tags'],
+      [{ volume: 0 }, 'volume'],
+      [{ volume: 1.5 }, 'volume'],
+      [{ series: 3 }, 'series'],
+    ])('不正な値は400（%o）', async (body, key) => {
+      const res = await send('POST', '/api/books', { title: '本', ...body })
+      expect(res.status).toBe(400)
+      expect((await res.json()).error).toContain(key)
+    })
+
+    describe('絞り込み・並べ替え', () => {
+      const titles = async (query: string) =>
+        ((await (await send('GET', `/api/books?${query}`)).json()) as { title: string }[]).map((b) => b.title)
+
+      beforeEach(async () => {
+        await create({ title: 'B 2巻', series: 'B', volume: 2, tags: ['漫画'] })
+        await create({ title: 'A 1巻', series: 'a', volume: 1, favorite: true })
+        await create({ title: 'B 1巻', series: 'B', volume: 1, tags: ['漫画', '名作'], favorite: true })
+        await create({ title: 'B 巻数なし', series: 'B' })
+        await create({ title: 'シリーズなし', tags: ['名作'] })
+      })
+
+      it('tag はタグの完全一致で絞り込む', async () => {
+        expect(await titles('tag=名作&sort=title&order=asc')).toEqual(['B 1巻', 'シリーズなし'])
+        expect(await titles('tag=名')).toEqual([])
+      })
+
+      it('series はシリーズ名の完全一致で絞り込む', async () => {
+        expect((await titles('series=B')).sort()).toEqual(['B 1巻', 'B 2巻', 'B 巻数なし'])
+      })
+
+      it('favorite=true / false でお気に入りを絞り込む', async () => {
+        expect((await titles('favorite=true')).sort()).toEqual(['A 1巻', 'B 1巻'])
+        expect(await titles('favorite=false')).toHaveLength(3)
+        expect((await send('GET', '/api/books?favorite=yes')).status).toBe(400)
+      })
+
+      it('sort=series はシリーズ名（大文字小文字を区別しない）→巻数の順で、シリーズなし・巻数なしは後ろ', async () => {
+        expect(await titles('sort=series&order=asc')).toEqual(['A 1巻', 'B 1巻', 'B 2巻', 'B 巻数なし', 'シリーズなし'])
+      })
+
+      it('他の条件と組み合わせられる', async () => {
+        expect(await titles('tag=漫画&favorite=true')).toEqual(['B 1巻'])
+      })
+    })
+  })
 })
