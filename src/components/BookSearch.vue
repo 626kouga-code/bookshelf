@@ -1,8 +1,20 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { searchGoogleBooks, type BookCandidate } from '@/api/googleBooks'
+import BarcodeScanner from './BarcodeScanner.vue'
 
 const emit = defineEmits<{ select: [candidate: BookCandidate] }>()
+
+/** カメラが使える環境か（HTTPS か localhost で、カメラのAPIがあるブラウザ） */
+const canScan = typeof navigator !== 'undefined' && typeof navigator.mediaDevices?.getUserMedia === 'function'
+const scanning = ref(false)
+
+/** バーコードで読み取った ISBN で検索する */
+function onDetected(isbn: string) {
+  scanning.value = false
+  query.value = isbn
+  onSearch()
+}
 
 const query = ref('')
 const candidates = ref<BookCandidate[]>([])
@@ -56,6 +68,16 @@ async function onSearch() {
         {{ loading ? '検索中…' : '検索' }}
       </button>
     </form>
+
+    <button
+      v-if="canScan"
+      type="button"
+      class="mt-2 rounded border border-stone-300 bg-surface px-3 py-1.5 text-sm hover:bg-stone-50"
+      @click="scanning = true"
+    >
+      カメラでバーコードを読み取る
+    </button>
+    <BarcodeScanner v-if="scanning" @detected="onDetected" @close="scanning = false" />
 
     <p v-if="error" role="alert" class="mt-3 rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700">
       {{ error }} 下のフォームから手入力でも登録できます。
