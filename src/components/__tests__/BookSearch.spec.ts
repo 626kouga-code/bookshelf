@@ -18,6 +18,51 @@ async function search(wrapper: ReturnType<typeof mount>, text: string) {
   await flushPromises()
 }
 
+describe('BookSearch（バーコード読み取り）', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    // navigator.mediaDevices を消して、他のテストに影響しないようにする
+    Reflect.deleteProperty(navigator, 'mediaDevices')
+  })
+
+  const scanButton = (wrapper: ReturnType<typeof mount>) =>
+    wrapper.findAll('button').find((b) => b.text() === 'カメラでバーコードを読み取る')
+
+  const mountWithCamera = () => {
+    Object.defineProperty(navigator, 'mediaDevices', { value: { getUserMedia: vi.fn() }, configurable: true })
+    return mount(BookSearch, { global: { stubs: { BarcodeScanner: true } } })
+  }
+
+  it('カメラが使えない環境では、読み取りボタンを出さない', () => {
+    expect(scanButton(mount(BookSearch))).toBeUndefined()
+  })
+
+  it('ボタンを押すと読み取り画面を開き、閉じると消える', async () => {
+    const wrapper = mountWithCamera()
+    await scanButton(wrapper)!.trigger('click')
+    const scanner = wrapper.findComponent({ name: 'BarcodeScanner' })
+    expect(scanner.exists()).toBe(true)
+
+    scanner.vm.$emit('close')
+    await flushPromises()
+    expect(wrapper.findComponent({ name: 'BarcodeScanner' }).exists()).toBe(false)
+  })
+
+  it('読み取った ISBN を検索欄に入れて検索する', async () => {
+    const fetchMock = stubFetch(() => Response.json({ items: [volume('リーダブルコード')] }))
+    const wrapper = mountWithCamera()
+    await scanButton(wrapper)!.trigger('click')
+
+    wrapper.findComponent({ name: 'BarcodeScanner' }).vm.$emit('detected', '9784873115658')
+    await flushPromises()
+
+    expect((wrapper.find('input[type="search"]').element as HTMLInputElement).value).toBe('9784873115658')
+    expect(fetchMock.mock.lastCall![0]).toContain('isbn%3A9784873115658')
+    expect(wrapper.findComponent({ name: 'BarcodeScanner' }).exists()).toBe(false)
+    expect(wrapper.text()).toContain('リーダブルコード')
+  })
+})
+
 describe('BookSearch', () => {
   afterEach(() => {
     vi.unstubAllGlobals()
