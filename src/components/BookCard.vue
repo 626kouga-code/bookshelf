@@ -7,9 +7,11 @@ import { daysSince, progressOf, seriesLabel, STATUS_CLASSES, STATUS_LABELS } fro
 const props = defineProps<{ book: Book }>()
 
 const emit = defineEmits<{
-  /** タグ・シリーズをクリックしたとき（本棚で、その条件で絞り込むため） */
+  /** タグ・シリーズ・著者・ジャンルをクリックしたとき（本棚で、その条件で絞り込むため） */
   'filter-tag': [tag: string]
   'filter-series': [series: string]
+  'filter-author': [author: string]
+  'filter-genre': [genre: string]
 }>()
 
 const progress = computed(() => progressOf(props.book))
@@ -46,9 +48,19 @@ const series = computed(() => seriesLabel(props.book))
         <RouterLink :to="`/books/${book.id}`" class="truncate after:absolute after:inset-0">{{ book.title }}</RouterLink>
       </h2>
       <p v-if="book.authors.length" class="truncate text-sm text-stone-600">
-        {{ book.authors.join('、') }}
+        <template v-for="(author, i) in book.authors" :key="author">
+          <template v-if="i > 0">、</template>
+          <button
+            type="button"
+            class="relative z-10 hover:underline"
+            :title="`著者「${author}」で絞り込む`"
+            @click="emit('filter-author', author)"
+          >
+            {{ author }}
+          </button>
+        </template>
       </p>
-      <!-- タグ・シリーズのボタンは、カード全体のリンク（after:absolute）より上に置く -->
+      <!-- 著者・シリーズ・ジャンル・タグのボタンは、カード全体のリンク（after:absolute）より上に置く -->
       <button
         v-if="series"
         type="button"
@@ -64,7 +76,15 @@ const series = computed(() => seriesLabel(props.book))
           {{ STATUS_LABELS[book.status] }}
         </span>
         <span v-if="tsundokuDays !== null" class="text-stone-500">積読 {{ tsundokuDays }}日</span>
-        <span v-if="book.genre" class="text-stone-500">{{ book.genre }}</span>
+        <button
+          v-if="book.genre"
+          type="button"
+          class="relative z-10 text-stone-500 hover:underline"
+          :title="`ジャンル「${book.genre}」で絞り込む`"
+          @click="emit('filter-genre', book.genre)"
+        >
+          {{ book.genre }}
+        </button>
         <span
           v-if="book.rating > 0"
           class="text-amber-600"

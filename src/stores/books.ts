@@ -12,6 +12,12 @@ export interface BookFilters {
   series: string
   /** true ならお気に入りだけ */
   favoriteOnly: boolean
+  /** 空文字は指定なし */
+  genre: string
+  /** 空文字は指定なし */
+  author: string
+  /** 星評価（0 は未評価）。空文字は指定なし */
+  rating: number | ''
   sort: BookSort
   order: SortOrder
 }
@@ -26,6 +32,9 @@ export const useBooksStore = defineStore('books', () => {
     tag: '',
     series: '',
     favoriteOnly: false,
+    genre: '',
+    author: '',
+    rating: '',
     sort: 'added_at',
     order: 'desc',
   })
@@ -44,6 +53,9 @@ export const useBooksStore = defineStore('books', () => {
         tag: filters.tag || undefined,
         series: filters.series || undefined,
         favorite: filters.favoriteOnly || undefined,
+        genre: filters.genre || undefined,
+        author: filters.author || undefined,
+        rating: filters.rating === '' ? undefined : filters.rating,
         sort: filters.sort,
         order: filters.order,
       })
@@ -64,7 +76,10 @@ export const useBooksStore = defineStore('books', () => {
       filters.q.trim() !== '' ||
       filters.tag !== '' ||
       filters.series !== '' ||
-      filters.favoriteOnly,
+      filters.favoriteOnly ||
+      filters.genre !== '' ||
+      filters.author !== '' ||
+      filters.rating !== '',
   )
 
   return { books, loading, error, filters, isFiltered, fetchBooks }

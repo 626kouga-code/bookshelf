@@ -193,6 +193,48 @@ describe('HomeView', () => {
       expect(wrapper.find('[aria-label="絞り込み中の条件"]').text()).toContain('シリーズ: ONE PIECE')
     })
 
+    it('カードの著者・ジャンルを押すと、その条件で絞り込み、それぞれ解除できる', async () => {
+      const fetchMock = stubFetch(() => Response.json([makeBook(1, '本', { authors: ['夏目漱石'], genre: '小説' })]))
+      const wrapper = await mountView()
+
+      await wrapper.findAll('button').find((b) => b.text() === '夏目漱石')!.trigger('click')
+      await wrapper.findAll('button').find((b) => b.text() === '小説')!.trigger('click')
+      await flushPromises()
+      expect(lastQuery(fetchMock)).toMatchObject({ author: '夏目漱石', genre: '小説' })
+      const chips = wrapper.find('[aria-label="絞り込み中の条件"]').text()
+      expect(chips).toContain('著者: 夏目漱石')
+      expect(chips).toContain('ジャンル: 小説')
+
+      await wrapper.find('button[aria-label="著者「夏目漱石」の絞り込みを解除"]').trigger('click')
+      await flushPromises()
+      expect(lastQuery(fetchMock).author).toBeUndefined()
+      expect(lastQuery(fetchMock).genre).toBe('小説')
+
+      await wrapper.find('button[aria-label="ジャンル「小説」の絞り込みを解除"]').trigger('click')
+      await flushPromises()
+      expect(lastQuery(fetchMock).genre).toBeUndefined()
+      expect(wrapper.find('[aria-label="絞り込み中の条件"]').exists()).toBe(false)
+    })
+
+    it('評価で絞り込める（未評価は rating=0、「すべて」で解除）', async () => {
+      const fetchMock = stubFetch(() => Response.json([]))
+      const wrapper = await mountView()
+      const select = wrapper.find('select[aria-label="評価で絞り込み"]')
+      expect(select.findAll('option').map((o) => o.text())).toEqual(['評価: すべて', '★★★★★', '★★★★☆', '★★★☆☆', '★★☆☆☆', '★☆☆☆☆', '未評価'])
+
+      await select.setValue('4')
+      await flushPromises()
+      expect(lastQuery(fetchMock).rating).toBe('4')
+
+      await select.setValue('0')
+      await flushPromises()
+      expect(lastQuery(fetchMock).rating).toBe('0')
+
+      await select.setValue('')
+      await flushPromises()
+      expect(lastQuery(fetchMock).rating).toBeUndefined()
+    })
+
     it('並べ替えで「シリーズ順」を選べる', async () => {
       const fetchMock = stubFetch(() => Response.json([]))
       const wrapper = await mountView()

@@ -74,6 +74,36 @@ describe('books store', () => {
     )
   })
 
+  it('ジャンル・著者・評価の絞り込みをAPIに渡す（未評価は 0）', async () => {
+    listBooksMock.mockResolvedValue([])
+    const store = useBooksStore()
+    store.filters.genre = '小説'
+    store.filters.author = '夏目漱石'
+    store.filters.rating = 0
+    await store.fetchBooks()
+    expect(listBooksMock).toHaveBeenCalledWith(expect.objectContaining({ genre: '小説', author: '夏目漱石', rating: 0 }))
+  })
+
+  it('評価を指定しないときは rating を送らない', async () => {
+    listBooksMock.mockResolvedValue([])
+    await useBooksStore().fetchBooks()
+    expect(listBooksMock.mock.lastCall![0]!.rating).toBeUndefined()
+  })
+
+  it('isFiltered はジャンル・著者・評価（未評価を含む）の絞り込みでも true', () => {
+    const store = useBooksStore()
+    store.filters.genre = '小説'
+    expect(store.isFiltered).toBe(true)
+    store.filters.genre = ''
+    store.filters.author = '夏目漱石'
+    expect(store.isFiltered).toBe(true)
+    store.filters.author = ''
+    store.filters.rating = 0
+    expect(store.isFiltered).toBe(true)
+    store.filters.rating = ''
+    expect(store.isFiltered).toBe(false)
+  })
+
   it('お気に入りだけに絞らないときは favorite を送らない', async () => {
     listBooksMock.mockResolvedValue([])
     await useBooksStore().fetchBooks()

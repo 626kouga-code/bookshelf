@@ -89,7 +89,21 @@ describe('BookCard', () => {
   })
 
   it('シリーズ・タグがなければ表示しない', () => {
-    expect(render().findAll('button')).toHaveLength(0)
+    const texts = render().findAll('button').map((b) => b.text())
+    expect(texts.some((t) => t.startsWith('#') || t.endsWith('巻'))).toBe(false)
+  })
+
+  it('著者を1人ずつ押せて、押すとその著者で絞り込むよう通知する', async () => {
+    const wrapper = render()
+    expect(wrapper.text()).toContain('夏目漱石、別の著者')
+    await wrapper.findAll('button').find((b) => b.text() === '別の著者')!.trigger('click')
+    expect(wrapper.emitted('filter-author')).toEqual([['別の著者']])
+  })
+
+  it('ジャンルを押すと、そのジャンルで絞り込むよう通知する', async () => {
+    const wrapper = render()
+    await wrapper.findAll('button').find((b) => b.text() === '小説')!.trigger('click')
+    expect(wrapper.emitted('filter-genre')).toEqual([['小説']])
   })
 
   it('評価があれば星で表示し、未評価なら表示しない', () => {
