@@ -85,6 +85,22 @@ terraform apply tfplan
 - 自宅のIPが変わったら `terraform.tfvars` の `my_ip_cidr` を直して `terraform apply` し直します
 - 費用は無料プランのクレジットから引かれます（目安: 月12〜13ドル）
 
+### デプロイ
+
+```powershell
+powershell -ExecutionPolicy Bypass -File infra/deploy.ps1
+```
+
+- コミット済みの内容（`HEAD`）を EC2 に転送し、EC2 上でイメージをビルドしてコンテナを入れ替えます。最後に `https://<アドレス>/api/health` が 200 になることを確認します
+- アドレスは `terraform output site_address`（例: `https://3-115-213-76.sslip.io/`）。自分のIPからしか開けません（スマホは自宅のWi-Fi経由なら使えます）
+- Google Books APIキーは `.env.local` から読み、EC2 上の権限600のファイルに置きます
+- DB・証明書は Docker のボリュームにあるので、デプロイしても消えません
+
+### データの移行・バックアップ
+
+- 移行: 移行元の設定画面で「JSONエクスポート」→ 本番の設定画面で「JSONインポート」（本番のデータはすべて置き換わります）
+- バックアップ: 本番の設定画面から定期的に「JSONエクスポート」して、手元に保存してください。EC2 を作り直すとDBのボリュームも消えます
+
 ## 品質チェック
 
 ```bash

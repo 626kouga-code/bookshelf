@@ -15,6 +15,10 @@ data "aws_ec2_instance_type" "selected" {
   instance_type = var.instance_type
 }
 
+locals {
+  is_arm = data.aws_ec2_instance_type.selected.supported_architectures[0] == "arm64"
+}
+
 data "aws_ami" "al2023" {
   most_recent = true
   owners      = ["amazon"]
@@ -98,7 +102,8 @@ resource "aws_instance" "app" {
   }
 
   user_data = templatefile("${path.module}/user_data.sh", {
-    compose_arch = data.aws_ec2_instance_type.selected.supported_architectures[0] == "arm64" ? "aarch64" : "x86_64"
+    compose_arch = local.is_arm ? "aarch64" : "x86_64"
+    buildx_arch  = local.is_arm ? "arm64" : "amd64"
   })
 
   tags = {
