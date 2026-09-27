@@ -24,6 +24,13 @@ const SORTS: { value: `${BookSort}:${SortOrder}`; label: string }[] = [
   { value: 'series:asc', label: 'シリーズ順' },
 ]
 
+/** 評価の絞り込み（'' はすべて、0 は未評価） */
+const RATINGS: { value: number | ''; label: string }[] = [
+  { value: '', label: '評価: すべて' },
+  ...[5, 4, 3, 2, 1].map((n) => ({ value: n, label: `${'★'.repeat(n)}${'☆'.repeat(5 - n)}` })),
+  { value: 0, label: '未評価' },
+]
+
 const store = useBooksStore()
 const { books, loading, error, filters, isFiltered } = storeToRefs(store)
 
@@ -45,6 +52,17 @@ watch(keyword, (value) => {
   debounceTimer = setTimeout(() => {
     filters.value.q = value
   }, SEARCH_DEBOUNCE_MS)
+})
+
+/** 絞り込み中の条件（カードから選んだもの）。× で解除できる */
+const chips = computed(() => {
+  const f = filters.value
+  const list: { key: 'series' | 'tag' | 'author' | 'genre'; name: string; value: string; display: string }[] = []
+  if (f.series) list.push({ key: 'series', name: 'シリーズ', value: f.series, display: f.series })
+  if (f.tag) list.push({ key: 'tag', name: 'タグ', value: f.tag, display: `#${f.tag}` })
+  if (f.author) list.push({ key: 'author', name: '著者', value: f.author, display: f.author })
+  if (f.genre) list.push({ key: 'genre', name: 'ジャンル', value: f.genre, display: f.genre })
+  return list
 })
 
 /** シリーズで絞り込むときは、巻数順に読めるようシリーズ順に並べ替える */
@@ -96,6 +114,13 @@ onBeforeUnmount(() => clearTimeout(debounceTimer))
       >
         <option v-for="s in SORTS" :key="s.value" :value="s.value">{{ s.label }}</option>
       </select>
+      <select
+        v-model="filters.rating"
+        aria-label="評価で絞り込み"
+        class="rounded border border-stone-300 bg-surface px-3 py-2 text-sm"
+      >
+        <option v-for="r in RATINGS" :key="r.label" :value="r.value">{{ r.label }}</option>
+      </select>
       <button
         type="button"
         :aria-pressed="filters.favoriteOnly"
@@ -111,25 +136,18 @@ onBeforeUnmount(() => clearTimeout(debounceTimer))
       </button>
     </div>
 
-    <div v-if="filters.tag || filters.series" class="mt-3 flex flex-wrap gap-2 text-sm" aria-label="絞り込み中の条件">
-      <span v-if="filters.series" class="flex items-center gap-1 rounded-full bg-stone-200 py-0.5 pl-3 pr-1">
-        シリーズ: {{ filters.series }}
+    <div v-if="chips.length" class="mt-3 flex flex-wrap gap-2 text-sm" aria-label="絞り込み中の条件">
+      <span
+        v-for="chip in chips"
+        :key="chip.key"
+        class="flex items-center gap-1 rounded-full bg-stone-200 py-0.5 pl-3 pr-1"
+      >
+        {{ chip.name }}: {{ chip.display }}
         <button
           type="button"
           class="rounded-full px-1.5 text-stone-500 hover:bg-stone-300 hover:text-stone-900"
-          :aria-label="`シリーズ「${filters.series}」の絞り込みを解除`"
-          @click="filters.series = ''"
-        >
-          ×
-        </button>
-      </span>
-      <span v-if="filters.tag" class="flex items-center gap-1 rounded-full bg-stone-200 py-0.5 pl-3 pr-1">
-        タグ: #{{ filters.tag }}
-        <button
-          type="button"
-          class="rounded-full px-1.5 text-stone-500 hover:bg-stone-300 hover:text-stone-900"
-          :aria-label="`タグ「${filters.tag}」の絞り込みを解除`"
-          @click="filters.tag = ''"
+          :aria-label="`${chip.name}「${chip.value}」の絞り込みを解除`"
+          @click="filters[chip.key] = ''"
         >
           ×
         </button>
@@ -153,7 +171,13 @@ onBeforeUnmount(() => clearTimeout(debounceTimer))
 
     <ul v-else class="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2" :class="{ 'opacity-60': loading }">
       <li v-for="book in books" :key="book.id">
-        <BookCard :book="book" @filter-tag="filters.tag = $event" @filter-series="filterBySeries" />
+        <BookCard
+          :book="book"
+          @filter-tag="filters.tag = $event"
+          @filter-series="filterBySeries"
+          @filter-author="filters.author = $event"
+          @filter-genre="filters.genre = $event"
+        />
       </li>
     </ul>
   </section>
