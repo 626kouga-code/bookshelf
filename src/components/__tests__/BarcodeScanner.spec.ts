@@ -57,13 +57,13 @@ describe('BarcodeScanner', () => {
     vi.restoreAllMocks()
   })
 
-  it('背面カメラを起動する', async () => {
+  it('背面カメラを高い解像度で起動する', async () => {
     stubCamera()
     stubNativeDetector([])
     mount(BarcodeScanner)
     await flushPromises()
     expect(navigator.mediaDevices.getUserMedia).toHaveBeenCalledWith({
-      video: { facingMode: { ideal: 'environment' } },
+      video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } },
       audio: false,
     })
   })
@@ -80,6 +80,16 @@ describe('BarcodeScanner', () => {
     await vi.advanceTimersByTimeAsync(250)
     expect(wrapper.emitted('detected')).toEqual([['9784873115658']])
     expect(track.stop).toHaveBeenCalled()
+  })
+
+  it('ISBN ではないバーコードを読み取ったら、上段を映すよう案内する', async () => {
+    stubCamera()
+    stubNativeDetector([['1920055008007']])
+    const wrapper = mount(BarcodeScanner)
+    await flushPromises()
+    await vi.advanceTimersByTimeAsync(250)
+    expect(wrapper.find('[role="status"]').text()).toContain('ISBN ではないバーコード（1920055008007）')
+    expect(wrapper.emitted('detected')).toBeUndefined()
   })
 
   it('一度読み取ったら、その後に検出しても通知しない', async () => {
