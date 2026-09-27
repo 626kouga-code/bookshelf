@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- 読書管理アプリのアイコン（開いた本としおり）。PWA用のPNG（public/pwa-*.png など）はこれを書き出したもの -->
+  <rect width="512" height="512" rx="112" fill="#1c1917"/>
+  <g fill="none" stroke="#fafaf9" stroke-width="22" stroke-linejoin="round" stroke-linecap="round">
+    <!-- 左のページ -->
+    <path d="M256 170c-38-26-86-34-136-28v200c50-6 98 2 136 28z"/>
+    <!-- 右のページ -->
+    <path d="M256 170c38-26 86-34 136-28v200c-50-6-98 2-136 28z"/>
+  </g>
+  <!-- しおり -->
+  <path d="M318 150v96l22-16 22 16v-102z" fill="#0ea5e9"/>
+</svg>
