@@ -62,3 +62,8 @@ infra/terraform/tfplan
 # EC2のSSH鍵（秘密鍵。公開鍵もまとめて除外する）
 infra/reading-app-key
 infra/reading-app-key.pub
+
+# デモ動画の録画（npm run demo:record）。動画は GitHub にアップロードして README から参照する
+/scripts/demo/.data/
+/scripts/demo/.output/
+/demo/
