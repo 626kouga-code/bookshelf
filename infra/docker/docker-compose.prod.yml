@@ -1,0 +1,39 @@
+# 本番用の構成。リポジトリ直下で実行する:
+#   SITE_ADDRESS=3-115-117-197.sslip.io docker compose -f infra/docker/docker-compose.prod.yml up -d --build
+# SITE_ADDRESS を省略すると :80（HTTPのみ）で起動する（手元での確認用）。
+# 手元で 80/443 が使用中なら HTTP_PORT・HTTPS_PORT で公開するポートを変える（例: HTTP_PORT=8081）。
+name: reading-app
+
+services:
+  backend:
+    build:
+      context: ../..
+      dockerfile: infra/docker/backend.Dockerfile
+    restart: unless-stopped
+    volumes:
+      - reading-data:/data
+    # ポートは外に出さない。同じネットワークの web（Caddy）からだけ届く
+
+  web:
+    build:
+      context: ../..
+      dockerfile: infra/docker/web.Dockerfile
+      args:
+        VITE_GOOGLE_BOOKS_API_KEY: ${VITE_GOOGLE_BOOKS_API_KEY:-}
+    restart: unless-stopped
+    depends_on:
+      - backend
+    environment:
+      SITE_ADDRESS: ${SITE_ADDRESS:-:80}
+    ports:
+      - "${HTTP_PORT:-80}:80"
+      - "${HTTPS_PORT:-443}:443"
+    volumes:
+      # 取得した証明書。消すと再取得になり、Let's Encrypt の発行回数制限にかかることがある
+      - caddy-data:/data
+      - caddy-config:/config
+
+volumes:
+  reading-data:
+  caddy-data:
+  caddy-config:

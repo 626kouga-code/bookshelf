@@ -41,7 +41,29 @@ npm run dev
 
 ### バックエンド
 
-`backend/` の追加後に手順を追記します。
+```bash
+cd backend
+npm install
+npm run dev
+```
+
+`http://127.0.0.1:8080` で起動します（ポート固定・外部には公開しない）。DBは `backend/data/reading.db` です（`DB_PATH` で変更可）。
+
+### 本番用のコンテナ（Docker）
+
+画面（Caddy で配信）とバックエンドを Docker Compose で起動します。構成は [infra/docker/](./infra/docker/) にあります。
+
+```bash
+# 手元で試す（HTTPのみ。http://localhost/ で開く）
+docker compose -f infra/docker/docker-compose.prod.yml up -d --build
+
+# 本番（ドメインを渡すと Let's Encrypt の証明書を自動で取得して HTTPS になる）
+SITE_ADDRESS=3-115-117-197.sslip.io docker compose -f infra/docker/docker-compose.prod.yml up -d --build
+```
+
+- DBと証明書は Docker のボリューム（`reading-data`・`caddy-data`）に保存され、コンテナを作り直しても残ります
+- Google Books APIキーは、ビルド時に環境変数 `VITE_GOOGLE_BOOKS_API_KEY` で渡します（無くても動きます）
+- 手元で 80/443 が使用中なら `HTTP_PORT`・`HTTPS_PORT` で公開するポートを変えられます
 
 ## 品質チェック
 
