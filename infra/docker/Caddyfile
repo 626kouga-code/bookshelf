@@ -1,0 +1,22 @@
+# SITE_ADDRESS にドメイン（例: 3-115-117-197.sslip.io）を渡すと、Let's Encrypt の証明書を自動で取得・更新し、
+# 80番へのアクセスは HTTPS へ転送する。手元での確認では :80 を渡して HTTP だけで動かす。
+{$SITE_ADDRESS::80} {
+	encode zstd gzip
+
+	handle /api/* {
+		reverse_proxy backend:8080
+	}
+
+	handle {
+		root * /srv
+		# SPA のため、ファイルが無いパス（/books/1 など）は index.html を返して画面側のルーターに任せる
+		try_files {path} /index.html
+		file_server
+	}
+
+	# ビルドのたびにファイル名が変わる assets/ は長くキャッシュし、index.html は毎回確認させる
+	@assets path /assets/*
+	header @assets Cache-Control "public, max-age=31536000, immutable"
+	@html path / /index.html
+	header @html Cache-Control "no-cache"
+}

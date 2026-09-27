@@ -4,7 +4,9 @@ import { createApp } from './app.ts'
 import { openDb } from './db.ts'
 
 const PORT = 8080
-const HOST = '127.0.0.1'
+// 認証を持たないため、既定では外部に公開しない。コンテナ内で動かすときだけ HOST=0.0.0.0 を渡す
+// （コンテナのポートは外に出さず、同じネットワークの Caddy からだけ届く）
+const HOST = process.env.HOST ?? '127.0.0.1'
 
 const db = openDb(process.env.DB_PATH ?? resolve(import.meta.dirname, '../data/reading.db'))
 const app = createApp(db)

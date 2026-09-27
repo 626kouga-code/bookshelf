@@ -1,0 +1,15 @@
+# ビルドに不要なもの・秘密情報をイメージに入れない
+**/node_modules
+**/dist
+.git
+.vscode
+.claude
+backend/data
+e2e
+test-results
+playwright-report
+coverage
+*.log
+.env*
+infra/terraform
+infra/*.pem
