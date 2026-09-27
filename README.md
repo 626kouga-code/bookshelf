@@ -65,6 +65,26 @@ SITE_ADDRESS=3-115-117-197.sslip.io docker compose -f infra/docker/docker-compos
 - Google Books APIキーは、ビルド時に環境変数 `VITE_GOOGLE_BOOKS_API_KEY` で渡します（無くても動きます）
 - 手元で 80/443 が使用中なら `HTTP_PORT`・`HTTPS_PORT` で公開するポートを変えられます
 
+### AWS（Terraform）
+
+本番のサーバー（EC2）は [infra/terraform/](./infra/terraform/) で作ります。AWS CLI のプロファイル `trello-app`（ap-northeast-1）を使います。
+
+```bash
+# 初回のみ: SSH鍵を作る（秘密鍵は Git 管理外）
+ssh-keygen -t ed25519 -N "" -C reading-app -f infra/reading-app-key
+
+cd infra/terraform
+cp terraform.tfvars.example terraform.tfvars   # 自分のIP（/32）と課金アラートの通知先を書く
+terraform init
+terraform plan -out=tfplan   # 作られるものを確認してから
+terraform apply tfplan
+```
+
+- 作られるもの: EC2 `t4g.micro`（ディスク10GB）、固定IP（Elastic IP）、セキュリティグループ、SSH鍵、課金アラート（AWS Budgets）
+- SSH（22）とアプリ（443）は自分のIPだけに許可しています。80番は Let's Encrypt の証明書取得と HTTPS への転送のためだけに全体へ開けています
+- 自宅のIPが変わったら `terraform.tfvars` の `my_ip_cidr` を直して `terraform apply` し直します
+- 費用は無料プランのクレジットから引かれます（目安: 月12〜13ドル）
+
 ## 品質チェック
 
 ```bash

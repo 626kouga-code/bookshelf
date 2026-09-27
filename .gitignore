@@ -51,3 +51,14 @@ backend/data/
 /playwright-report/
 /blob-report/
 /playwright/.cache/
+
+# Terraform（stateには作成したリソースの情報が入る。tfvarsには自分のIPなどを書く）
+infra/terraform/.terraform/
+infra/terraform/*.tfstate
+infra/terraform/*.tfstate.*
+infra/terraform/terraform.tfvars
+infra/terraform/tfplan
+
+# EC2のSSH鍵（秘密鍵。公開鍵もまとめて除外する）
+infra/reading-app-key
+infra/reading-app-key.pub

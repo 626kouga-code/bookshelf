@@ -12,4 +12,4 @@ coverage
 *.log
 .env*
 infra/terraform
-infra/*.pem
+infra/reading-app-key*
