@@ -110,6 +110,6 @@ npm run build   # 型チェック + ビルド
 npm run test:e2e  # Playwright（E2E）
 ```
 
-E2Eテストは、初回のみ `npx playwright install chromium` でブラウザを入れておきます。実行時にフロント（5173）とバックエンド（8080）をE2E専用のDB（`e2e/.data/`）で自動起動するため、devサーバーは止めてから実行してください（ポートが使用中なら失敗します）。
+E2Eテストは、初回のみ `npx playwright install chromium` でブラウザを入れておきます。実行時にフロント（5173）・バックエンド（8080）と、PWAの確認用にビルドした画面（`vite preview`、4173）をE2E専用のDB（`e2e/.data/`）で自動起動するため、devサーバーは止めてから実行してください（ポートが使用中なら失敗します）。
 
 コミット・PR作成前の手順は [.claude/skills/quality-check/SKILL.md](./.claude/skills/quality-check/SKILL.md) にまとめています。

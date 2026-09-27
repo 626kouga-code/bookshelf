@@ -34,5 +34,13 @@ export default defineConfig({
       url: 'http://localhost:5173',
       reuseExistingServer: false,
     },
+    // PWA（Service Worker）は開発サーバーでは動かさないため、ビルドした画面を vite preview で配信して確かめる。
+    // /api は開発サーバーと同じくバックエンド（8080）へ転送される
+    {
+      command: 'npm run build-only && npx vite preview --port 4173 --strictPort',
+      url: 'http://localhost:4173',
+      reuseExistingServer: false,
+      timeout: 120_000,
+    },
   ],
 })
