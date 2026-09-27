@@ -34,7 +34,7 @@
 - Node.js: v24.19.0（`engines`: `^22.18.0 || >=24.12.0`）
 - 外部API: Google Books API（フロントエンドから直接呼び出す）。APIキーは任意で、使う場合は `.env.local` に `VITE_GOOGLE_BOOKS_API_KEY=...` と書く（`.gitignore` 対象）。キーなしでも動くが、共有クォータのため利用上限（HTTP 429）に達しやすい。失敗時は手入力にフォールバックする
 - 開発サーバーのポート: フロント `5173` / バックエンド `8080`（固定。[CLAUDE.md](../CLAUDE.md) 参照）
-- デプロイ: 未定（ローカル動作を優先。公開は別Issueで検討）
+- デプロイ: AWS（EC2 `t4g.micro`・東京リージョン）に Docker Compose で配置し、sslip.io のドメインと Let's Encrypt で HTTPS 化する。接続は自分のIPからのみ許可（ログイン機能は持たない）。手順は README の「デプロイ」を参照
 
 ### 4.2 その他の非機能要件
 - **保存**: SQLiteのDBファイルに保存する。場所は環境変数 `DB_PATH` で指定でき、既定は `backend/data/reading.db`（`.gitignore` 対象）。OneDrive同期の対象外に置く

@@ -13,6 +13,12 @@ curl -fsSL "https://github.com/docker/compose/releases/latest/download/docker-co
   -o /usr/local/lib/docker/cli-plugins/docker-compose
 chmod +x /usr/local/lib/docker/cli-plugins/docker-compose
 
+# Docker Buildx（Compose でイメージをビルドするのに必要。Amazon Linux の docker パッケージには入っていない）
+buildx_version=$(curl -fsSL https://api.github.com/repos/docker/buildx/releases/latest | grep -o '"tag_name": *"[^"]*"' | grep -o 'v[0-9.]*')
+curl -fsSL "https://github.com/docker/buildx/releases/download/$${buildx_version}/buildx-$${buildx_version}.linux-${buildx_arch}" \
+  -o /usr/local/lib/docker/cli-plugins/docker-buildx
+chmod +x /usr/local/lib/docker/cli-plugins/docker-buildx
+
 # メモリが1GBしかないので、画面のビルド（Vite）で足りなくならないようスワップを2GB作る
 if [ ! -f /swapfile ]; then
   dd if=/dev/zero of=/swapfile bs=1M count=2048
